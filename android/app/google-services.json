@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "256416420291",
+    "project_id": "propay-47fa1",
+    "storage_bucket": "propay-47fa1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256416420291:android:7cc0cd40fd096d9a436d76",
+        "android_client_info": {
+          "package_name": "com.example.propay"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4TYi81HUf7QEnaQmJQiKGEnfWJZfUbCY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

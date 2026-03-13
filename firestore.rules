@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // User profile rules
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow creation during registration
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Deny direct balance updates - must be done via Cloud Functions
+      allow update: if request.auth != null && request.auth.uid == userId 
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['walletBalance', 'role']);
+    }
+
+    // Merchant rules
+    match /merchants/{merchantId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admin/custom triggers can create merchants
+    }
+
+    // Transaction rules
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null && 
+                  (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow write: if false; // All transactions must be created by Cloud Functions
+    }
+  }
+}
