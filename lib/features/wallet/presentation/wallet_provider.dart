@@ -3,7 +3,41 @@ import '../../../core/network/firebase_service.dart';
 import '../../auth/domain/user_model.dart';
 import '../../transaction/domain/transaction_model.dart';
 import '../../auth/presentation/auth_provider.dart';
+import '../domain/card_model.dart';
 import '../../../core/providers/service_providers.dart';
+
+import '../data/gateway_service.dart';
+
+// Stream of cards stored in Firebase (ProPay cards)
+final internalCardsProvider = StreamProvider<List<CardModel>>((ref) {
+  final authAsync = ref.watch(authStateProvider);
+  final user = authAsync.valueOrNull;
+  if (user == null) return const Stream.empty();
+  return ref.watch(firebaseServiceProvider).getCards(user.uid);
+});
+
+// Stream of external integrated cards (Stripe, Telebirr, etc.)
+final gatewayCardsProvider = StreamProvider<List<CardModel>>((ref) {
+  final authAsync = ref.watch(authStateProvider);
+  final user = authAsync.valueOrNull;
+  if (user == null) return const Stream.empty();
+  return ref.watch(gatewayServiceProvider).getLinkedGateways(user.uid);
+});
+
+// Combined Stream of ALL cards (Exclusively Gateways now)
+final userCardsProvider = Provider<AsyncValue<List<CardModel>>>((ref) {
+  final gateway = ref.watch(gatewayCardsProvider);
+
+  if (gateway.isLoading && gateway.valueOrNull == null) {
+    return const AsyncValue.loading();
+  }
+
+  if (gateway.hasError) {
+    return AsyncValue.error(gateway.error!, gateway.stackTrace!);
+  }
+
+  return AsyncValue.data(gateway.valueOrNull ?? []);
+});
 
 // Real-time user model stream
 final userModelProvider = StreamProvider<UserModel?>((ref) {
@@ -28,33 +62,41 @@ final receivedTransactionsProvider = StreamProvider<List<TransactionModel>>((ref
   if (user == null) return const Stream.empty();
   return ref.watch(firebaseServiceProvider).getReceivedTransactions(user.uid);
 });
+// Real-time external transactions (Stripe, etc.)
+final externalTransactionsProvider = StreamProvider<List<TransactionModel>>((ref) {
+  final authAsync = ref.watch(authStateProvider);
+  final user = authAsync.valueOrNull;
+  if (user == null) return const Stream.empty();
+  return ref.watch(gatewayServiceProvider).getExternalTransactions();
+});
 
 // Combined transaction list
 final allTransactionsProvider = Provider<AsyncValue<List<TransactionModel>>>((ref) {
   final sent = ref.watch(sentTransactionsProvider);
   final received = ref.watch(receivedTransactionsProvider);
+  final external = ref.watch(externalTransactionsProvider);
 
-  return sent.when(
-    data: (sentList) {
-      return received.when(
-        data: (receivedList) {
-          final combined = [...sentList, ...receivedList];
-          combined.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-          return AsyncValue.data(combined.take(30).toList());
-        },
-        loading: () => const AsyncValue.loading(),
-        error: (e, s) => AsyncValue.error(e, s),
-      );
-    },
-    loading: () => const AsyncValue.loading(),
-    error: (e, s) => AsyncValue.error(e, s),
-  );
+  if (sent.isLoading || received.isLoading) {
+    return const AsyncValue.loading();
+  }
+
+  final List<TransactionModel> combined = [
+    ...(sent.valueOrNull ?? []),
+    ...(received.valueOrNull ?? []),
+    ...(external.valueOrNull ?? []),
+  ];
+
+  combined.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  return AsyncValue.data(combined.take(30).toList());
 });
 
 // Wallet operation notifier
 final walletProvider =
     StateNotifierProvider<WalletNotifier, WalletState>((ref) {
-  return WalletNotifier(ref.watch(firebaseServiceProvider));
+  return WalletNotifier(
+    ref.watch(firebaseServiceProvider),
+    ref.watch(gatewayServiceProvider),
+  );
 });
 
 class WalletState {
@@ -80,12 +122,24 @@ class WalletState {
 
 class WalletNotifier extends StateNotifier<WalletState> {
   final FirebaseService _service;
-  WalletNotifier(this._service) : super(const WalletState());
+  final GatewayService _gatewayService;
+  WalletNotifier(this._service, this._gatewayService) : super(const WalletState());
 
-  Future<bool> transfer(String receiverId, double amount) async {
+  Future<bool> transfer(String receiverId, double amount, {CardModel? source}) async {
     state = state.copyWith(isLoading: true, error: null, isSuccess: false);
     try {
-      await _service.transferFunds(receiverId, amount);
+      if (source != null && source.platform != 'propay') {
+        // Execute real external gateway transfer
+        final ok = await _gatewayService.executeGatewayTransfer(
+          source: source,
+          destination: receiverId,
+          amount: amount,
+        );
+        if (!ok) throw Exception('Gateway transfer failed');
+      } else {
+        // Internal ProPay transfer
+        await _service.transferFunds(receiverId, amount);
+      }
       state = state.copyWith(isLoading: false, isSuccess: true);
       return true;
     } catch (e) {
@@ -116,3 +170,33 @@ class WalletNotifier extends StateNotifier<WalletState> {
     return 'Operation failed. Please try again.';
   }
 }
+final homeScreenIndexProvider = StateProvider<int>((ref) => 0);
+
+// Statistics calculator
+final walletStatisticsProvider = Provider<AsyncValue<Map<String, double>>>((ref) {
+  final transactionsAsync = ref.watch(allTransactionsProvider);
+  final authAsync = ref.watch(authStateProvider);
+  final user = authAsync.valueOrNull;
+
+  return transactionsAsync.when(
+    data: (transactions) {
+      double income = 0;
+      double expense = 0;
+      for (var tx in transactions) {
+        // If the current user is the sender, it's an expense.
+        // If not (e.g., from a gateway where receiverId is 'Merchant' or similar), it's income.
+        if (tx.senderId == user?.uid) {
+          expense += tx.amount;
+        } else {
+          income += tx.amount;
+        }
+      }
+      return AsyncValue.data({
+        'income': income,
+        'expense': expense,
+      });
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (e, s) => AsyncValue.error(e, s),
+  );
+});

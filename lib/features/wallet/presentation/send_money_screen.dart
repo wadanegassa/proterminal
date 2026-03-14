@@ -7,6 +7,7 @@ import '../../../core/providers/service_providers.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/cards.dart';
+import '../domain/card_model.dart';
 import '../../../core/utils/biometric_service.dart';
 
 class SendMoneyScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,15 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen>
   final _noteCtrl = TextEditingController();
   String? _receiverName;
   bool _lookingUp = false;
+  String _selectedChannel = 'email'; // Default to Email
+  CardModel? _selectedSourceCard;
+
+  final List<Map<String, dynamic>> _channels = [
+    {'id': 'email', 'label': 'By Email', 'icon': Icons.email_rounded},
+    {'id': 'phone', 'label': 'By Phone', 'icon': Icons.phone_rounded},
+    {'id': 'card', 'label': 'By Card', 'icon': Icons.credit_card_rounded},
+    {'id': 'address', 'label': 'By Address', 'icon': Icons.account_balance_wallet_rounded},
+  ];
 
   late final AnimationController _animCtrl;
   late final Animation<double> _anim;
@@ -56,11 +66,18 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen>
     setState(() => _lookingUp = true);
     try {
       final svc = ref.read(firebaseServiceProvider);
-      final user = query.contains('@')
-          ? null
-          : await svc.getUserByPhone(query.trim());
+      final users = await svc.searchUsers(query.trim());
+      
       setState(() {
-        _receiverName = user?.name;
+        // If it's a phone query and we have a match, or if there's exactly one search result
+        if (users.isNotEmpty) {
+          _receiverName = users.first.name;
+          // If query was likely a phone number, we don't overwrite the controller
+          // but if it was a name, we might want to set the controller to the ID later
+          // For now, just show the found name
+        } else {
+          _receiverName = null;
+        }
         _lookingUp = false;
       });
     } catch (_) {
@@ -77,9 +94,21 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen>
     final authenticated = await biometricService.authenticate(context);
     if (!mounted || !authenticated) return;
 
+    // Simulate Gateway Routing Delay if not internal
+    if (_selectedChannel != 'propay') {
+      setState(() {
+        // Show loading in dialog/UI if we wanted, but walletProvider.transfer handles it for now
+      });
+      await Future.delayed(const Duration(seconds: 2)); // Simulate external API call
+    }
+
     final ok = await ref
         .read(walletProvider.notifier)
-        .transfer(_receiverCtrl.text.trim(), double.parse(_amountCtrl.text));
+        .transfer(
+          _receiverCtrl.text.trim(), 
+          double.parse(_amountCtrl.text),
+          source: _selectedSourceCard,
+        );
 
     if (!mounted) return;
     if (ok) {
@@ -198,118 +227,265 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen>
 
   @override
   Widget build(BuildContext context) {
-    final walletState = ref.watch(walletProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final walletState = ref.watch(walletProvider);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Send Money', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text('TRANSFER FUNDS',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w900, 
+              fontSize: 14, 
+              letterSpacing: 2,
+              color: isDark ? Colors.white : Colors.black,
+            )),
         centerTitle: true,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.black, size: 20),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
-        child: ScaleTransition(
-          scale: _anim,
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Wallet Summary
-                SectionHeader(title: 'Payment Details'),
-                const SizedBox(height: 12),
-                
-                // Amount Input
-                ProCard(
-                  isGlass: isDark,
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
+      body: Stack(
+        children: [
+          Positioned.fill(child: CustomPaint(painter: _GridPainter(
+            color: isDark ? AppColors.darkGridColor : AppColors.lightGridColor,
+          ))),
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 8, 28, 140),
+            child: ScaleTransition(
+              scale: _anim,
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('AMOUNT TO TRANSFER', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                    const SizedBox(height: 16),
+                    
+                    // ─── Amount Input (Stark Design) ─────────────────────────────
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Column(
+                        children: [
+                          TextFormField(
+                            controller: _amountCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            validator: Validators.amount,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                                fontSize: 64,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? Colors.white : Colors.black,
+                                letterSpacing: -2),
+                            decoration: InputDecoration(
+                              hintText: '0.00',
+                              hintStyle: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
+                              prefixIcon: Padding(
+                                padding: const EdgeInsets.only(left: 20),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text('\$', style: GoogleFonts.inter(
+                                      fontSize: 32, 
+                                      fontWeight: FontWeight.w900, 
+                                      color: AppColors.primary)),
+                                  ],
+                                ),
+                              ),
+                              border: InputBorder.none,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+
+                    // ─── Source & Recipient Section ──────────────────────────────────────
+                    Text('PAYMENT DETAILS', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Amount to Send',
-                          style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
+                      // Source Account Selection
+                      Text('Source Account', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, letterSpacing: 2)),
                       const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _amountCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        validator: Validators.amount,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                            fontSize: 48,
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? Colors.white : AppColors.lightTextPrimary),
-                        decoration: InputDecoration(
-                          hintText: '0.00',
-                          hintStyle: GoogleFonts.inter(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
-                          prefix: Text('\$ ',
-                              style: GoogleFonts.inter(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.primary)),
-                          border: InputBorder.none,
+                      ref.watch(userCardsProvider).when(
+                        data: (cards) {
+                          if (cards.isEmpty) return const Text('NO ACTIVE ASSETS', style: TextStyle(color: AppColors.error));
+                          if (_selectedSourceCard != null) {
+                            try {
+                              _selectedSourceCard = cards.firstWhere((c) => c.id == _selectedSourceCard!.id);
+                            } catch (_) {
+                              _selectedSourceCard = cards.first;
+                            }
+                          } else {
+                            _selectedSourceCard = cards.first;
+                          }
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                              border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButtonFormField<CardModel>(
+                                isExpanded: true,
+                                initialValue: _selectedSourceCard,
+                                decoration: const InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16)),
+                                dropdownColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                                items: cards.map((c) => DropdownMenuItem(
+                                  value: c,
+                                  child: Row(
+                                    children: [
+                                      Icon(c.platform == 'stripe' ? Icons.payments_rounded : Icons.account_balance_wallet_rounded, 
+                                           color: AppColors.primary, size: 20),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text('${c.platform.toUpperCase()} [${c.cardNumber.substring(c.cardNumber.length - 4)}] (${Formatters.currency(c.balance)})', 
+                                             overflow: TextOverflow.ellipsis,
+                                             style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
+                                      ),
+                                    ],
+                                  ),
+                                )).toList(),
+                                onChanged: (val) => setState(() => _selectedSourceCard = val),
+                              ),
+                            ),
+                          );
+                        },
+                        loading: () => const LinearProgressIndicator(),
+                        error: (_, __) => const Text('Error loading accounts'),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Channel Selection
+                      Text('Send Method', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, letterSpacing: 2)),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                          border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue: _selectedChannel,
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          ),
+                          dropdownColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                          icon: Icon(Icons.keyboard_arrow_down_rounded, color: isDark ? Colors.white24 : Colors.black26),
+                          style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1),
+                          items: _channels.map((ch) => DropdownMenuItem(
+                            value: ch['id'] as String,
+                            child: Row(
+                              children: [
+                                Icon(ch['icon'] as IconData, color: AppColors.primary, size: 20),
+                                const SizedBox(width: 12),
+                                Text((ch['label'] as String).toUpperCase()),
+                              ],
+                            ),
+                          )).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedChannel = val;
+                                _receiverName = null;
+                              });
+                            }
+                          },
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Recipient Search
-                SectionHeader(title: 'Recipient'),
-                const SizedBox(height: 12),
-                ProCard(
-                  isGlass: isDark,
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: _receiverCtrl,
-                        validator: (v) => Validators.required(v, field: 'Recipient'),
-                        onChanged: (v) {
-                          if (v.length > 5) _lookupUser(v);
-                        },
-                        style: GoogleFonts.inter(color: isDark ? Colors.white : AppColors.lightTextPrimary),
-                        decoration: InputDecoration(
-                          hintText: 'Phone number or Account ID',
-                          prefixIcon: const Icon(Icons.person_search_rounded,
-                              color: AppColors.primary, size: 20),
-                          suffixIcon: _lookingUp
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(AppColors.primary)),
-                                  ))
-                              : null,
-                          filled: true,
-                          fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : AppColors.lightSurface,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+                      const SizedBox(height: 24),
+                      
+                      // ID Input
+                      Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                          border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: TextFormField(
+                          controller: _receiverCtrl,
+                          validator: (v) => Validators.required(v, field: 'Recipient'),
+                          onChanged: (v) {
+                            if (v.length > 5 && (_selectedChannel == 'email' || _selectedChannel == 'phone')) {
+                              _lookupUser(v);
+                            }
+                          },
+                          style: GoogleFonts.inter(
+                            color: isDark ? Colors.white : Colors.black,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1),
+                          decoration: InputDecoration(
+                            hintText: _selectedChannel == 'email' ? 'IDENTIFIER: EMAIL' : 
+                                      _selectedChannel == 'phone' ? 'IDENTIFIER: PHONE' : 
+                                      _selectedChannel == 'card' ? 'IDENTIFIER: CARD' : 'IDENTIFIER: WALLET ADDRESS',
+                            hintStyle: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white24 : Colors.black38),
+                            prefixIcon: Icon(_selectedChannel == 'email' ? Icons.alternate_email_rounded : 
+                                            _selectedChannel == 'phone' ? Icons.phone_android_rounded : 
+                                            _selectedChannel == 'card' ? Icons.credit_card_rounded : Icons.account_balance_wallet_rounded,
+                                color: AppColors.primary, size: 20),
+                            suffixIcon: _lookingUp
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(AppColors.primary)),
+                                    ))
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                          ),
                         ),
                       ),
                       if (_receiverName != null) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
                         Container(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(16),
+                            color: AppColors.success.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
                           ),
                           child: Row(
                             children: [
                               Container(
-                                width: 40,
-                                height: 40,
+                                width: 44,
+                                height: 44,
                                 decoration: BoxDecoration(
-                                  color: AppColors.success.withValues(alpha: 0.2),
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF00C853), Color(0xFFB2FF59)]),
                                   shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.success.withValues(alpha: 0.2),
+                                      blurRadius: 10, offset: const Offset(0, 4))
+                                  ],
                                 ),
-                                child: const Icon(Icons.person_rounded, color: AppColors.success, size: 20),
+                                child: Icon(Icons.person_rounded, color: isDark ? Colors.white : Colors.black, size: 22),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,14 +493,19 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen>
                                     Text(_receiverName!,
                                         style: GoogleFonts.inter(
                                             color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 15)),
-                                    Text('Verified ProPay User', 
-                                        style: GoogleFonts.inter(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w600)),
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 16)),
+                                    const SizedBox(height: 2),
+                                    Text('Verified ProPay Recipient', 
+                                        style: GoogleFonts.inter(
+                                          color: AppColors.success, 
+                                          fontSize: 12, 
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.3)),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
+                              const Icon(Icons.verified_rounded, color: AppColors.success, size: 24),
                             ],
                           ),
                         ),
@@ -332,44 +513,78 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen>
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
 
-                // Note
+                // Note Field
                 TextFormField(
                   controller: _noteCtrl,
                   maxLines: 1,
-                  style: GoogleFonts.inter(color: isDark ? Colors.white : AppColors.lightTextPrimary),
+                  style: GoogleFonts.inter(
+                    color: isDark ? Colors.white : AppColors.lightTextPrimary,
+                    fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
-                    hintText: 'What is this for? (optional)',
-                    prefixIcon: const Icon(Icons.description_rounded, color: AppColors.primary, size: 20),
+                    hintText: 'Add a note (optional)',
+                    hintStyle: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: isDark ? Colors.white24 : AppColors.lightTextMuted),
+                    prefixIcon: const Icon(Icons.sticky_note_2_rounded, color: AppColors.primary, size: 20),
                     filled: true,
                     fillColor: isDark ? AppColors.darkCard : Colors.white,
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide(color: isDark ? Colors.white.withValues(alpha: 0.05) : AppColors.lightDivider),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       borderSide: const BorderSide(color: AppColors.primary, width: 2),
                     ),
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 56),
 
                 if (walletState.isLoading)
-                  const Center(child: CircularProgressIndicator())
+                  const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primary)))
                 else
-                  GradientButton(
-                    label: 'Transfer Instantly',
-                    icon: Icons.bolt_rounded,
-                    onPressed: _submit,
+                  SizedBox(
+                    width: double.infinity,
+                    height: 64,
+                    child: GradientButton(
+                      label: 'Send Fund Instantly',
+                      icon: Icons.bolt_rounded,
+                      onPressed: _submit,
+                    ),
                   ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 60),
               ],
             ),
           ),
         ),
       ),
-    );
+    ],
+  ),
+);
   }
+}
+
+class _GridPainter extends CustomPainter {
+  final Color color;
+  _GridPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0;
+
+    const step = 40.0;
+    for (double i = 0; i < size.width; i += step) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    }
+    for (double i = 0; i < size.height; i += step) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
