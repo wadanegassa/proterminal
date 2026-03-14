@@ -19,9 +19,26 @@ class QRScannerScreen extends ConsumerStatefulWidget {
 }
 
 class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
-  final MobileScannerController _cameraCtrl = MobileScannerController();
+  final MobileScannerController _cameraCtrl = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    detectionTimeoutMs: 1000,
+    formats: [BarcodeFormat.qrCode],
+    returnImage: false,
+  );
   bool _isProcessing = false;
   bool _torchOn = false;
+
+  late Rect _scanWindow;
+
+  @override
+  void initState() {
+    super.initState();
+    _scanWindow = Rect.fromCenter(
+      center: const Offset(0.5, 0.45),
+      width: 0.7,
+      height: 0.35,
+    );
+  }
 
   @override
   void dispose() {
@@ -40,12 +57,19 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
     final qrSvc = ref.read(qrServiceProvider);
     if (qrSvc.isValidQR(raw)) {
       await ref.read(qrProvider.notifier).processCode(raw);
-      final qrState = ref.read(qrProvider);
-      if (qrState.detectedMerchant != null && mounted) {
-        _showPaymentSheet(raw);
-      } else if (mounted) {
-        _showError(qrState.error ?? 'Invalid QR Code');
-      }
+    final qrState = ref.read(qrProvider);
+    if (qrState.detectedMerchant != null && mounted) {
+      _showPaymentSheet(raw);
+    } else if (qrState.detectedUserId != null && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SendMoneyScreen(prefilledUserId: qrState.detectedUserId),
+        ),
+      );
+    } else if (mounted) {
+      _showError(qrState.error ?? 'Invalid QR Code');
+    }
     } else {
       _showError('Not a valid ProPay QR Code');
     }
@@ -56,9 +80,10 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
     setState(() => _isProcessing = false);
     _cameraCtrl.start();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
+      content: Text(msg.toUpperCase(), style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
       backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
     ));
   }
 
@@ -68,6 +93,7 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
     final preAmount = qrState.amount;
     final amountCtrl = TextEditingController(
         text: preAmount != null ? preAmount.toStringAsFixed(2) : '');
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
@@ -79,86 +105,104 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
           decoration: BoxDecoration(
-            color: isDark ? AppColors.darkCard : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                   width: 40,
-                  height: 4,
+                  height: 2,
                   decoration: BoxDecoration(
                       color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
                       borderRadius: BorderRadius.circular(4))),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               Container(
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                    gradient: AppColors.secondaryGradient,
-                    borderRadius: BorderRadius.circular(20)),
+                    color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                    border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                    borderRadius: BorderRadius.circular(4)),
                 child:
-                    const Icon(Icons.storefront_rounded, color: Colors.white, size: 32),
+                    Icon(Icons.storefront_rounded, color: isDark ? Colors.white : Colors.black, size: 32),
               ),
-              const SizedBox(height: 16),
-              Text(merchant.businessName,
-                  style: GoogleFonts.inter(
-                      fontSize: 20, 
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary)),
-              Text(merchant.name,
-                  style: GoogleFonts.inter(
-                      fontSize: 14, 
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
               const SizedBox(height: 24),
-              if (preAmount == null) ...[
-                TextField(
-                  controller: amountCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  autofocus: true,
-                  textAlign: TextAlign.center,
+              Text(merchant.businessName.toUpperCase(),
                   style: GoogleFonts.inter(
-                      fontSize: 40, 
+                      fontSize: 16, 
                       fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary),
-                  decoration: InputDecoration(
-                    hintText: '0.00',
-                    prefix: Text('\$ ',
-                        style: GoogleFonts.inter(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primary)),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    fillColor: Colors.transparent,
+                      color: isDark ? Colors.white : Colors.black,
+                      letterSpacing: 1)),
+              const SizedBox(height: 4),
+              Text(merchant.name.toUpperCase(),
+                  style: GoogleFonts.inter(
+                      fontSize: 10, 
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                      letterSpacing: 2)),
+              const SizedBox(height: 32),
+              if (preAmount == null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+                    border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: TextField(
+                    controller: amountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    autofocus: true,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                        fontSize: 48, 
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : Colors.black,
+                        letterSpacing: -1),
+                    decoration: InputDecoration(
+                      hintText: '0.00',
+                      hintStyle: TextStyle(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1)),
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.only(left: 20),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('\$', style: GoogleFonts.inter(
+                              fontSize: 24, 
+                              fontWeight: FontWeight.w900, 
+                              color: AppColors.primary)),
+                          ],
+                        ),
+                      ),
+                      border: InputBorder.none,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
               ] else ...[
                 Text(
                   Formatters.currency(preAmount),
                   style: GoogleFonts.inter(
-                      fontSize: 40,
+                      fontSize: 48,
                       fontWeight: FontWeight.w900,
-                      color: AppColors.primary),
+                      color: isDark ? Colors.white : Colors.black,
+                      letterSpacing: -1),
                 ),
-                const SizedBox(height: 8),
-                const StatusBadge(label: 'Fixed Payment', color: AppColors.primary),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
+                const StatusBadge(label: 'VERIFIED PAYMENT', color: AppColors.primary),
+                const SizedBox(height: 32),
               ],
               GradientButton(
-                label: 'Confirm Payment',
+                label: 'INSTAT PAY AUTHORIZE',
                 icon: Icons.shield_rounded,
-                gradient: AppColors.primaryGradient,
                 onPressed: () async {
                   final amount = preAmount ??
                       double.tryParse(amountCtrl.text);
                   if (amount == null || amount <= 0) return;
 
-                  // Biometric Check
                   final authenticated = await biometricService.authenticate(context);
                   if (!mounted || !authenticated) return;
 
@@ -184,7 +228,7 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
                   _cameraCtrl.start();
                   ref.read(qrProvider.notifier).reset();
                 },
-                child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.error, fontWeight: FontWeight.w700)),
+                child: Text('CANCEL SESSION', style: GoogleFonts.inter(color: AppColors.error, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
               ),
             ],
           ),
@@ -203,9 +247,13 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => Dialog(
-        backgroundColor: isDark ? AppColors.darkCard : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4), 
+          side: BorderSide(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -215,27 +263,33 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                    gradient: AppColors.accentGradient,
-                    shape: BoxShape.circle),
+                  color: AppColors.darkBackground,
+                  border: Border.all(color: AppColors.primary),
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.check_rounded,
-                    color: Colors.white, size: 40),
+                    color: AppColors.primary, size: 40),
               ),
-              const SizedBox(height: 24),
-              Text('Payment Sent!',
+              const SizedBox(height: 32),
+              Text('PAYMENT AUTHORIZED',
                   style: GoogleFonts.inter(
-                      fontSize: 22, 
+                      fontSize: 18, 
                       fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary)),
+                      color: isDark ? Colors.white : Colors.black,
+                      letterSpacing: 1)),
               const SizedBox(height: 12),
-              Text('You have successfully paid ${Formatters.currency(amount)} to $merchantName',
+              Text('SUCCESSFULLY TRANSFERRED ${Formatters.currency(amount)} TO ${merchantName.toUpperCase()}',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                    fontSize: 14)),
+                    color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    height: 1.5)),
               const SizedBox(height: 32),
               GradientButton(
                 onPressed: () => Navigator.pop(context),
-                label: 'Continue',
+                label: 'CONTINUE',
               ),
             ],
           ),
@@ -246,14 +300,16 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: isDark ? Colors.black : Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: isDark ? Colors.black : Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: Text('Payment Scanner',
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w800)),
+        iconTheme: IconThemeData(color: isDark ? Colors.white : Colors.black),
+        title: Text('SCANNER',
+            style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 4)),
+        centerTitle: true,
         actions: [
           IconButton(
             onPressed: () {
@@ -262,13 +318,14 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
             },
             icon: Icon(
               _torchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-              color: Colors.white,
+              color: isDark ? Colors.white : Colors.black,
+              size: 20,
             ),
           ),
           IconButton(
             onPressed: () => _cameraCtrl.switchCamera(),
-            icon: const Icon(Icons.flip_camera_android_rounded,
-                color: Colors.white),
+            icon: Icon(Icons.flip_camera_android_rounded,
+                color: isDark ? Colors.white : Colors.black, size: 20),
           ),
         ],
       ),
@@ -276,25 +333,23 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
         children: [
           MobileScanner(
             controller: _cameraCtrl,
+            scanWindow: _scanWindow,
             onDetect: _onDetect,
           ),
-          // Adaptive Overlay
           CustomPaint(
             painter: _ScanOverlayPainter(),
             child: const SizedBox.expand(),
           ),
-          // Processing status
           if (_isProcessing)
             Container(
-              color: Colors.black.withValues(alpha: 0.7),
+              color: Colors.black.withValues(alpha: 0.8),
               child: const Center(
                 child: CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation(AppColors.primary)),
               ),
             ),
-          // Bottom Manual Entry
           Positioned(
-            bottom: 60,
+            bottom: 80,
             left: 0,
             right: 0,
             child: Center(
@@ -305,17 +360,21 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
                       MaterialPageRoute(
                           builder: (_) => const SendMoneyScreen()));
                 },
-                child: GlassContainer(
-                  borderRadius: 20,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                    border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.edit_note_rounded, color: Colors.white, size: 20),
-                      const SizedBox(width: 10),
-                      Text('Enter ID Manually',
+                      Icon(Icons.edit_note_rounded, color: isDark ? Colors.white : Colors.black, size: 20),
+                      const SizedBox(width: 12),
+                      Text('MANUAL IDENTIFIER ENTRY',
                           style: GoogleFonts.inter(
-                              color: Colors.white, fontWeight: FontWeight.w700)),
+                              color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5)),
                     ],
                   ),
                 ),
@@ -331,7 +390,7 @@ class _QRScannerScreenState extends ConsumerState<QRScannerScreen> {
 class _ScanOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.black.withValues(alpha: 0.6);
+    final paint = Paint()..color = Colors.black.withValues(alpha: 0.7);
     const rectSize = 250.0;
     final rect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height / 2 - 40),
@@ -344,18 +403,18 @@ class _ScanOverlayPainter extends CustomPainter {
         PathOperation.difference,
         Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
         Path()
-          ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(30))),
+          ..addRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4))),
       ),
       paint,
     );
 
     final borderPaint = Paint()
-      ..shader = AppColors.primaryGradient.createShader(rect)
-      ..strokeWidth = 6
+      ..color = AppColors.primary
+      ..strokeWidth = 4
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.square;
 
-    const cLen = 40.0;
+    const cLen = 30.0;
     final corners = [
       [rect.topLeft, const Offset(cLen, 0), const Offset(0, cLen)],
       [rect.topRight, const Offset(-cLen, 0), const Offset(0, cLen)],

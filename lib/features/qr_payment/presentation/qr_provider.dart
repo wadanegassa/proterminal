@@ -14,12 +14,16 @@ final qrProvider = StateNotifierProvider<QRNotifier, QRState>((ref) {
 class QRState {
   final bool isScanning;
   final MerchantModel? detectedMerchant;
+  final String? detectedUserId; // New field for user QR
+  final String? detectedUserName;
   final double? amount;
   final String? error;
 
   const QRState({
     this.isScanning = false,
     this.detectedMerchant,
+    this.detectedUserId,
+    this.detectedUserName,
     this.amount,
     this.error,
   });
@@ -27,12 +31,16 @@ class QRState {
   QRState copyWith({
     bool? isScanning,
     MerchantModel? detectedMerchant,
+    String? detectedUserId,
+    String? detectedUserName,
     double? amount,
     String? error,
   }) =>
       QRState(
         isScanning: isScanning ?? this.isScanning,
         detectedMerchant: detectedMerchant ?? this.detectedMerchant,
+        detectedUserId: detectedUserId ?? this.detectedUserId,
+        detectedUserName: detectedUserName ?? this.detectedUserName,
         amount: amount ?? this.amount,
         error: error ?? this.error,
       );
@@ -56,16 +64,27 @@ class QRNotifier extends StateNotifier<QRState> {
       return;
     }
 
+    final type = params['type'];
+    if (type == 'user') {
+      final uid = params['uid'];
+      final name = params['name'];
+      state = state.copyWith(
+        isScanning: false,
+        detectedUserId: uid,
+        detectedUserName: name,
+      );
+      return;
+    }
+
     final merchantId = params['merchantId'];
     if (merchantId == null) {
-      state = state.copyWith(isScanning: false, error: 'Missing merchant ID');
+      state = state.copyWith(isScanning: false, error: 'Missing business ID');
       return;
     }
 
     final merchant = await _firebaseService.getMerchantById(merchantId);
     if (merchant == null) {
-      state = state.copyWith(
-          isScanning: false, error: 'Merchant not registered with ProPay');
+      state = state.copyWith(isScanning: false, error: 'Business not found');
       return;
     }
 

@@ -8,24 +8,30 @@ class QRService {
 
   Map<String, String>? parseQRCode(String code) {
     try {
-      if (!code.startsWith('$scheme:')) return null;
-      
-      final Uri uri = Uri.parse(code);
-      return uri.queryParameters;
+      final uri = Uri.parse(code);
+      if (uri.scheme != scheme) return null;
+      return {
+        'type': uri.host,
+        ...uri.queryParameters,
+      };
     } catch (e) {
       return null;
     }
   }
 
   String generateStaticQR(String merchantId) {
-    return '$scheme:merchant?merchantId=$merchantId';
+    return '$scheme://merchant?merchantId=$merchantId';
+  }
+
+  String generateUserQR(String uid, String email, String name) {
+    return '$scheme://user?uid=$uid&email=$email&name=$name';
   }
 
   String generateDynamicQR(String merchantId, double amount, String merchantName) {
-    return '$scheme:payment?merchantId=$merchantId&amount=$amount&merchantName=$merchantName';
+    return '$scheme://payment?merchantId=$merchantId&amount=$amount&merchantName=$merchantName';
   }
 
   bool isValidQR(String code) {
-    return code.startsWith('$scheme:');
+    return code.startsWith('$scheme://');
   }
 }
