@@ -1,4 +1,4 @@
-// Removed unused import
+import '../../wallet/domain/card_model.dart';
 
 enum UserRole { standard, merchant }
 
@@ -10,6 +10,7 @@ class UserModel {
   final double walletBalance;
   final UserRole role;
   final String businessName;
+  final List<CardModel> cards;
 
   const UserModel({
     required this.uid,
@@ -19,9 +20,11 @@ class UserModel {
     required this.walletBalance,
     required this.role,
     this.businessName = '',
+    this.cards = const [],
   });
 
   factory UserModel.fromMap(Map<String, dynamic> data, String id) {
+    final cardsData = data['cards'] as List<dynamic>? ?? [];
     return UserModel(
       uid: id,
       name: (data['name'] as String?) ?? '',
@@ -32,6 +35,7 @@ class UserModel {
           ? UserRole.merchant
           : UserRole.standard,
       businessName: (data['businessName'] as String?) ?? '',
+      cards: cardsData.map((c) => CardModel.fromMap(Map<String, dynamic>.from(c), '')).toList(),
     );
   }
 
@@ -42,6 +46,7 @@ class UserModel {
         'walletBalance': walletBalance,
         'role': role.name,
         'businessName': businessName,
+        'cards': cards.map((c) => c.toMap()).toList(),
       };
 
   String get initials {

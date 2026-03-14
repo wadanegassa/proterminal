@@ -9,6 +9,7 @@ import '../../wallet/presentation/wallet_provider.dart';
 import '../domain/user_model.dart';
 import '../../merchant/presentation/merchant_dashboard.dart';
 import '../../../core/providers/theme_provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -16,188 +17,291 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(userModelProvider);
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Account', style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+        title: Text('SYSTEM PROFILE',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w900, 
+              fontSize: 12, 
+              letterSpacing: 2,
+              color: isDark ? Colors.white : Colors.black,
+            )),
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: () => _edit(context),
-            icon: const Icon(Icons.settings_outlined),
-          ),
-        ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
-      body: userAsync.when(
-        data: (user) {
-          if (user == null) return const Center(child: Text('No profile data'));
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 120),
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                // Premium Avatar Section
-                Center(
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
+      body: Stack(
+        children: [
+          Positioned.fill(child: CustomPaint(painter: _GridPainter(
+            color: isDark ? AppColors.darkGridColor : AppColors.lightGridColor,
+          ))),
+          userAsync.when(
+            data: (user) {
+              if (user == null) return const Center(child: Text('DATA CORRUPT'));
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(28, 8, 28, 140),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 40),
+                    // ─── Industrial Identity Block ──────────────────────────
+                    Center(
+                      child: Container(
+                        width: 120,
+                        height: 120,
                         decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.3),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
+                          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                          border: Border.all(color: AppColors.primary, width: 2),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Center(
                           child: Text(
                             user.initials,
                             style: GoogleFonts.inter(
-                                fontSize: 40,
+                                fontSize: 48,
                                 fontWeight: FontWeight.w900,
-                                color: Colors.white),
+                                color: isDark ? Colors.white : Colors.black),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      Text(user.name,
-                          style: GoogleFonts.inter(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: isDark ? Colors.white : AppColors.lightTextPrimary)),
-                      const SizedBox(height: 4),
-                      Text(user.email,
-                          style: GoogleFonts.inter(
-                              fontSize: 14, 
-                              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                              fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 16),
-                      StatusBadge(
-                        label: user.role.name.toUpperCase(),
-                        color: user.role == UserRole.merchant ? AppColors.secondary : AppColors.primary,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
+                    ),
+                    const SizedBox(height: 32),
+                    Text(user.name.toUpperCase(),
+                        style: GoogleFonts.inter(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? Colors.white : Colors.black,
+                            letterSpacing: -0.5)),
+                    const SizedBox(height: 8),
+                    Text(user.email.toUpperCase(),
+                        style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1)),
+                    const SizedBox(height: 24),
+                    StatusBadge(
+                      label: 'ACCESS LEVEL: ${user.role.name.toUpperCase()}',
+                      color: user.role == UserRole.merchant ? AppColors.secondary : AppColors.primary,
+                    ),
+                    
+                    const SizedBox(height: 48),
 
-                // Quick Info Row
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ProfileStat(
-                        icon: Icons.account_balance_wallet_rounded,
-                        label: 'Balance',
-                        value: Formatters.currency(user.walletBalance),
-                        isDark: isDark,
+                    // ─── Identity Parameters ───────────────────────────────
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProfileStat(
+                            icon: Icons.account_balance_wallet_rounded,
+                            label: 'LIQUIDITY',
+                            value: Formatters.currency(user.walletBalance),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ProfileStat(
+                            icon: Icons.verified_user_rounded,
+                            label: 'SECURITY',
+                            value: 'ENCRYPTED',
+                          ),
+                        ),
+                      ],
+                    ),
+                    // ─── Sparkline ─────────────────────────────────────────
+                    Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            left: 16,
+                            top: 0,
+                            child: Text('NETWORK ACTIVITY', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                          ),
+                          Positioned(
+                            right: 16,
+                            top: 0,
+                            child: Row(
+                              children: [
+                                Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+                                const SizedBox(width: 4),
+                                Text('LIVE', style: GoogleFonts.inter(color: AppColors.success, fontSize: 8, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 20),
+                            child: IgnorePointer(
+                              child: LineChart(
+                                LineChartData(
+                                  gridData: const FlGridData(show: false),
+                                  titlesData: const FlTitlesData(show: false),
+                                  borderData: FlBorderData(show: false),
+                                  minX: 0, maxX: 6, minY: 0, maxY: 10,
+                                  lineBarsData: [
+                                    LineChartBarData(
+                                      spots: const [
+                                        FlSpot(0, 3), FlSpot(1, 4), FlSpot(2, 3.5),
+                                        FlSpot(3, 8), FlSpot(4, 5), FlSpot(5, 7),
+                                        FlSpot(6, 6),
+                                      ],
+                                      isCurved: true,
+                                      color: AppColors.primary,
+                                      barWidth: 2,
+                                      isStrokeCapRound: true,
+                                      dotData: const FlDotData(show: false),
+                                      belowBarData: BarAreaData(
+                                        show: true,
+                                        gradient: LinearGradient(
+                                          colors: [AppColors.primary.withValues(alpha: 0.3), AppColors.primary.withValues(alpha: 0.0)],
+                                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _ProfileStat(
-                        icon: Icons.verified_user_rounded,
-                        label: 'Safety',
-                        value: 'Tier 2',
-                        isDark: isDark,
+                    const SizedBox(height: 40),
+
+                    // ─── Configuration ─────────────────────────────────────
+                    SectionHeader(title: 'SYSTEM CONFIG'),
+                    _SettingsTile(
+                      icon: Icons.dark_mode_rounded,
+                      label: 'HIGH CONTRAST MODE',
+                      trailing: Switch.adaptive(
+                        value: isDark,
+                        activeTrackColor: AppColors.primary.withValues(alpha: 0.5),
+                        activeThumbColor: AppColors.primary,
+                        onChanged: (val) => ref.read(themeModeProvider.notifier).toggleTheme(),
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+
+                    SectionHeader(title: 'AUTHORIZED MODULES'),
+                    const SizedBox(height: 12),
+                    if (user.role == UserRole.merchant)
+                      _SettingsTile(
+                        icon: Icons.storefront_rounded,
+                        label: 'MERCHANT PORTAL',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MerchantDashboard())),
+                      ),
+                    _SettingsTile(icon: Icons.security_rounded, label: 'ENCRYPTION PROTOCOLS', onTap: () => _mockDialog(context, 'Security modules are operating normally.', isDark)),
+                    _SettingsTile(icon: Icons.notifications_rounded, label: 'SIGNAL PREFERENCES', onTap: () => _mockDialog(context, 'Notification signals routed securely via device.', isDark)),
+                    _SettingsTile(icon: Icons.help_rounded, label: 'KNOWLEDGE BASE', onTap: () => _mockDialog(context, 'Accessing distributed support documents...', isDark)),
+                    
+                    const SizedBox(height: 48),
+                    // ─── Termination ─────────────────────────────────────────
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _signOut(context, ref),
+                        icon: const Icon(Icons.logout_rounded, size: 20),
+                        label: Text('TERMINATE SESSION', 
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 2)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: BorderSide(color: isDark ? Colors.white12 : Colors.black12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 32),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primary))),
+            error: (_, __) => const Center(child: Text('DATA ERROR')),
+          ),
+        ],
+      ),
+    );
+  }
 
-                // Theme Management Section
-                SectionHeader(title: 'Appearance'),
-                const SizedBox(height: 12),
-                ProCard(
-                  isGlass: isDark,
-                  child: Row(
-                    children: [
-                      Icon(isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded, 
-                          color: AppColors.primary),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          isDark ? 'Dark Mode Active' : 'Light Mode Active',
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : AppColors.lightTextPrimary,
-                          ),
-                        ),
-                      ),
-                      Switch.adaptive(
-                        value: isDark,
-                        activeTrackColor: AppColors.primary,
-                        onChanged: (val) => ref.read(themeModeProvider.notifier).toggleTheme(),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-
-                // Settings & Actions
-                SectionHeader(title: 'Settings'),
-                const SizedBox(height: 12),
-                if (user.role == UserRole.merchant)
-                  _SettingsTile(
-                    icon: Icons.storefront_rounded,
-                    label: 'Merchant Business Portal',
-                    isDark: isDark,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MerchantDashboard())),
-                  ),
-                _SettingsTile(icon: Icons.security_rounded, label: 'Security & Biometrics', isDark: isDark, onTap: () {}),
-                _SettingsTile(icon: Icons.notifications_rounded, label: 'Push Notifications', isDark: isDark, onTap: () {}),
-                _SettingsTile(icon: Icons.help_rounded, label: 'Support & FAQ', isDark: isDark, onTap: () {}),
-                
-                const SizedBox(height: 40),
-                // Sign Out Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _signOut(context, ref),
-                    icon: const Icon(Icons.logout_rounded, size: 20),
-                    label: const Text('Sign Out'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
-                      foregroundColor: AppColors.error,
-                      elevation: 0,
-                      side: BorderSide(color: AppColors.error.withValues(alpha: 0.3)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(child: Text('Error loading profile')),
+  void _mockDialog(BuildContext context, String message, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkCard : Colors.white,
+        title: Text('SYSTEM MODULE', style: GoogleFonts.inter(fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
+        content: Text(message, style: GoogleFonts.inter(color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('ACKNOWLEDGE', style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: Text('Sign Out', style: GoogleFonts.inter(fontWeight: FontWeight.w900)),
-        content: const Text('Are you sure you want to sign out?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Sign Out'),
+      builder: (_) => Dialog(
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4), 
+          side: BorderSide(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('TERMINATE SESSION', 
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w900, 
+                    color: isDark ? Colors.white : Colors.black, 
+                    fontSize: 16, 
+                    letterSpacing: 1,
+                  )),
+              const SizedBox(height: 16),
+              Text('Are you sure you want to end the current encrypted session?',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    height: 1.5, 
+                    color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, 
+                    fontSize: 12,
+                  )),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false), 
+                      child: Text('ABORT', style: GoogleFonts.inter(
+                        color: isDark ? Colors.white : Colors.black, 
+                        fontWeight: FontWeight.w900, 
+                        fontSize: 12,
+                      ))),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: GradientButton(
+                      label: 'CONFIRM',
+                      onPressed: () => Navigator.pop(context, true),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
     if (confirmed == true) {
@@ -205,34 +309,42 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 
-  void _edit(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Settings coming soon!'), behavior: SnackBarBehavior.floating),
-    );
-  }
 }
 
 class _ProfileStat extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final bool isDark;
 
-  const _ProfileStat({required this.icon, required this.label, required this.value, required this.isDark});
+  const _ProfileStat({required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return ProCard(
-      isGlass: isDark,
-      padding: const EdgeInsets.all(16),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        borderRadius: BorderRadius.circular(4),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 22),
-          const SizedBox(height: 12),
-          Text(label, style: GoogleFonts.inter(fontSize: 12, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextSecondary, fontWeight: FontWeight.w600)),
+          Icon(icon, color: AppColors.primary, size: 20),
+          const SizedBox(height: 16),
+          Text(label, 
+              style: GoogleFonts.inter(
+                  fontSize: 10, 
+                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, 
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2)),
           const SizedBox(height: 4),
-          Text(value, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: isDark ? Colors.white : AppColors.lightTextPrimary)),
+          Text(value, 
+              style: GoogleFonts.inter(
+                  fontSize: 16, 
+                  fontWeight: FontWeight.w900, 
+                  color: isDark ? Colors.white : Colors.black)),
         ],
       ),
     );
@@ -242,41 +354,67 @@ class _ProfileStat extends StatelessWidget {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String label;
-  final bool isDark;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final Widget? trailing;
 
-  const _SettingsTile({required this.icon, required this.label, required this.isDark, required this.onTap});
+  const _SettingsTile({required this.icon, required this.label, this.onTap, this.trailing});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: ProCard(
+      child: GestureDetector(
         onTap: onTap,
-        isGlass: isDark,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: isDark ? Colors.white70 : Colors.black87, size: 20),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(label,
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: isDark ? Colors.white : Colors.black,
+                        letterSpacing: 0.5)),
               ),
-              child: Icon(icon, color: AppColors.primary, size: 20),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(label,
-                  style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      color: isDark ? Colors.white : AppColors.lightTextPrimary)),
-            ),
-            Icon(Icons.chevron_right_rounded, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
-          ],
+              trailing ?? Icon(Icons.chevron_right_rounded, 
+                  color: isDark ? Colors.white12 : Colors.black12,
+                  size: 20),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _GridPainter extends CustomPainter {
+  final Color color;
+  _GridPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0;
+
+    const step = 40.0;
+    for (double i = 0; i < size.width; i += step) {
+      canvas.drawLine(Offset(i, 0), Offset(i, size.height), paint);
+    }
+    for (double i = 0; i < size.height; i += step) {
+      canvas.drawLine(Offset(0, i), Offset(size.width, i), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
