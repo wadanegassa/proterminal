@@ -5,8 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'core/config/theme.dart';
 import 'features/wallet/data/payment_service.dart';
-import 'core/config/payment_config.dart';
-import 'features/auth/presentation/login_screen.dart';
+import 'features/auth/presentation/auth_screen.dart';
 import 'features/wallet/presentation/home_screen.dart';
 import 'features/auth/presentation/auth_provider.dart';
 import 'core/providers/theme_provider.dart';
@@ -20,9 +19,9 @@ void main() async {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
-  // Initialize Stripe safely
+  // Initialize Stripe via service
   try {
-    await PaymentService.initStripe(PaymentConfig.stripePublishableKey);
+    await PaymentService.initStripe();
   } catch (e) {
     debugPrint('Stripe initialization failed: $e');
   }
@@ -55,11 +54,11 @@ class AuthWrapper extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
     return authState.when(
-      data: (user) => user != null ? const HomeScreen() : const LoginScreen(),
+      data: (user) => user != null ? const HomeScreen() : const AuthScreen(),
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       ),
-      error: (_, __) => const LoginScreen(),
+      error: (_, __) => const AuthScreen(),
     );
   }
 }
