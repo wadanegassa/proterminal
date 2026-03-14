@@ -2,8 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/constants.dart';
+import '../utils/formatters.dart';
+import 'package:flutter/services.dart';
 
-// ─── Adaptive Glass/Surface Container ─────────────────────────────────────────
+// ─── Adaptive Stark Container ─────────────────────────────────────────
 class GlassContainer extends StatelessWidget {
   final Widget child;
   final double borderRadius;
@@ -11,57 +13,57 @@ class GlassContainer extends StatelessWidget {
   final Color? color;
   final Border? border;
   final EdgeInsetsGeometry? padding;
+  final bool disableBlur;
 
   const GlassContainer({
     super.key,
     required this.child,
-    this.borderRadius = 24,
+    this.borderRadius = 4, // Stark sharp corners
     this.blur = 16,
     this.color,
     this.border,
     this.padding,
+    this.disableBlur = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final container = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color ??
+            (isDark
+                ? AppColors.darkSurface
+                : Colors.white.withValues(alpha: 0.7)),
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: border ??
+            Border.all(
+              color: isDark
+                  ? AppColors.darkDivider
+                  : Colors.white.withValues(alpha: 0.4),
+              width: 1.0,
+            ),
+      ),
+      child: child,
+    );
+
+    if (disableBlur || !isDark) {
+      return container;
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: color ??
-                (isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.white.withValues(alpha: 0.7)),
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: border ??
-                Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.1)
-                      : Colors.white.withValues(alpha: 0.4),
-                ),
-            boxShadow: isDark
-                ? []
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    )
-                  ],
-          ),
-          child: child,
-        ),
+        child: container,
       ),
     );
   }
 }
 
-// ─── Adaptive Pro Card ────────────────────────────────────────────────────────
+// ─── Adaptive Pro Card (Stark) ────────────────────────────────────────────────────────
 class ProCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -92,30 +94,14 @@ class ProCard extends StatelessWidget {
       padding: padding ?? const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: gradient == null && !isGlass
-            ? (isDark ? AppColors.darkCard : AppColors.lightCard)
+            ? (isDark ? AppColors.darkSurface : AppColors.lightCard)
             : null,
         gradient: gradient,
-        borderRadius: BorderRadius.circular(24),
-        border: isGlass ? null : null, // Handled if glass
-        boxShadow: !isDark && gradient == null && !isGlass
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                )
-              ]
-            : [],
+        borderRadius: BorderRadius.circular(4), // Stark industrial corners
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
       ),
       child: child,
     );
-
-    if (isGlass) {
-      return GestureDetector(
-        onTap: onTap,
-        child: GlassContainer(borderRadius: 24, child: body),
-      );
-    }
 
     return GestureDetector(
       onTap: onTap,
@@ -124,13 +110,16 @@ class ProCard extends StatelessWidget {
   }
 }
 
-// ─── Premium Wallet Card ──────────────────────────────────────────────────────
+// ─── Premium Wallet Card (Stark Edition) ─────────────────────────────────────
 class PremiumWalletCard extends StatelessWidget {
   final String balance;
   final String cardNum;
   final String expDate;
   final String holderName;
-  final LinearGradient gradient;
+  final LinearGradient? gradient;
+  final String platform;
+  final VoidCallback? onTap;
+  final String? address;
 
   const PremiumWalletCard({
     super.key,
@@ -138,84 +127,154 @@ class PremiumWalletCard extends StatelessWidget {
     required this.cardNum,
     required this.expDate,
     required this.holderName,
-    required this.gradient,
+    this.address,
+    this.gradient,
+    this.platform = 'propay',
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.6,
-      child: ProCard(
-        gradient: gradient,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Icon(Icons.wifi, color: Colors.white70, size: 20),
-                Text('.... .... .... ${cardNum.substring(cardNum.length - 4)}',
-                    style: GoogleFonts.inter(
-                        color: Colors.white70,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w600)),
-              ],
-            ),
-            const Spacer(),
-            Text('Balance',
-                style: GoogleFonts.inter(
-                    color: Colors.white.withValues(alpha: 0.7), fontSize: 14)),
-            const SizedBox(height: 4),
-            Text(balance,
-                style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800)),
-            const Spacer(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('CARD HOLDER',
-                        style: GoogleFonts.inter(
-                            color: Colors.white54,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold)),
-                    Text(holderName,
-                        style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600)),
-                  ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: AspectRatio(
+        aspectRatio: 1.6,
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildPlatformIcon(platform, isDark),
+                  Text('.... .... .... ${cardNum.length > 4 ? cardNum.substring(cardNum.length - 4) : cardNum}', 
+                      style: GoogleFonts.inter(
+                          color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                          letterSpacing: 2,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900)),
+                ],
+              ),
+              const Spacer(),
+              Text('AVAILABLE BALANCE',
+                  style: GoogleFonts.inter(
+                      color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+              const SizedBox(height: 8),
+              Text(balance,
+                  style: GoogleFonts.inter(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 38,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1)),
+              const SizedBox(height: 12),
+              if (address != null) 
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: address!));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Address copied to clipboard'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(address!, 
+                            style: GoogleFonts.inter(
+                                color: AppColors.primary, 
+                                fontSize: 10, 
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1)),
+                        const SizedBox(width: 8),
+                        Icon(Icons.copy_rounded, color: isDark ? Colors.white70 : Colors.black54, size: 10),
+                      ],
+                    ),
+                  ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('EXP DATE',
-                        style: GoogleFonts.inter(
-                            color: Colors.white54,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold)),
-                    Text(expDate,
-                        style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ],
-            ),
-          ],
+              const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('CARD HOLDER',
+                          style: GoogleFonts.inter(
+                              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5)),
+                      const SizedBox(height: 4),
+                      Text(holderName.toUpperCase(),
+                          style: GoogleFonts.inter(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('EXPIRY',
+                          style: GoogleFonts.inter(
+                              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5)),
+                      const SizedBox(height: 4),
+                      Text(expDate,
+                          style: GoogleFonts.inter(
+                              color: isDark ? Colors.white : Colors.black,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  Widget _buildPlatformIcon(String platform, bool isDark) {
+    final iconColor = isDark ? Colors.white : Colors.black;
+    switch (platform.toLowerCase()) {
+      case 'stripe':
+        return Row(
+          children: [
+            Icon(Icons.payments_rounded, color: iconColor, size: 18),
+            const SizedBox(width: 8),
+            Text('STRIPE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: iconColor, letterSpacing: 1)),
+          ],
+        );
+      case 'chapa':
+        return Text('CHAPA', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: iconColor, letterSpacing: 1));
+      default:
+        return Icon(Icons.account_balance_wallet_rounded, color: iconColor, size: 20);
+    }
+  }
 }
 
-// ─── Adaptive Quick Action Button ─────────────────────────────────────────────
+// ─── Adaptive Quick Action Button (Stark) ─────────────────────────────────────────────
 class QuickActionBtn extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -235,56 +294,32 @@ class QuickActionBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
           Container(
-            width: 60,
-            height: 60,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
-              color: gradient == null
-                  ? (isDark ? AppColors.darkSurface : Colors.white)
-                  : null,
-              gradient: gradient,
-              borderRadius: BorderRadius.circular(20),
-              border: !isDark && gradient == null
-                  ? Border.all(color: AppColors.lightDivider)
-                  : null,
-              boxShadow: isDark
-                  ? (gradient != null
-                      ? [
-                          BoxShadow(
-                            color: gradient!.colors.first.withValues(alpha: 0.2),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          )
-                        ]
-                      : [])
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
+              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
             ),
             child: Icon(
               icon,
-              color: gradient != null
-                  ? Colors.white
-                  : (color ?? (isDark ? Colors.white : AppColors.primary)),
-              size: 26,
+              color: color ?? (isDark ? Colors.white : Colors.black),
+              size: 24,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
-            label,
+            label.toUpperCase(),
             style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+              letterSpacing: 1,
             ),
           ),
         ],
@@ -293,13 +328,14 @@ class QuickActionBtn extends StatelessWidget {
   }
 }
 
-// ─── Adaptive Transaction Tile ──────────────────────────────────────────────
+// ─── Adaptive Transaction Tile (Stark) ──────────────────────────────────────────────
 class TransactionTile extends StatelessWidget {
   final String name;
   final String subtitle;
   final double amount;
   final bool isSent;
   final String? initials;
+  final IconData? icon;
 
   const TransactionTile({
     super.key,
@@ -308,32 +344,41 @@ class TransactionTile extends StatelessWidget {
     required this.amount,
     required this.isSent,
     this.initials,
+    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        borderRadius: BorderRadius.circular(4),
+      ),
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightBackground,
-              borderRadius: BorderRadius.circular(16),
+              color: isDark ? AppColors.darkBackground : AppColors.lightBackground,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
             ),
             child: Center(
-              child: Text(
-                initials ?? (name.isNotEmpty ? name[0].toUpperCase() : 'T'),
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                  fontSize: 18,
-                ),
-              ),
+              child: icon != null 
+                ? Icon(icon, color: isDark ? Colors.white : Colors.black, size: 18)
+                : Text(
+                    initials ?? (name.isNotEmpty ? name[0].toUpperCase() : 'T'),
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 16,
+                    ),
+                  ),
             ),
           ),
           const SizedBox(width: 16),
@@ -342,45 +387,33 @@ class TransactionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  name,
+                  name.toUpperCase(),
                   style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    color: isDark ? Colors.white : Colors.black,
+                    letterSpacing: 0.5,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
                   style: GoogleFonts.inter(
-                    fontSize: 13,
+                    fontSize: 10,
                     color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${isSent ? '-' : '+'}\$${amount.toStringAsFixed(2)}',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: isSent ? AppColors.error : AppColors.success,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                isSent ? 'Transfer' : 'Received',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+          Text(
+            '${isSent ? '-' : '+'}${Formatters.currency(amount)}',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w900,
+              fontSize: 15,
+              color: isSent ? AppColors.primary : (isDark ? Colors.white : Colors.black),
+            ),
           ),
         ],
       ),
@@ -388,7 +421,7 @@ class TransactionTile extends StatelessWidget {
   }
 }
 
-// ─── Adaptive Section Header ──────────────────────────────────────────────────
+// ─── Adaptive Section Header (Stark) ──────────────────────────────────────────────────
 class SectionHeader extends StatelessWidget {
   final String title;
   final String? actionLabel;
@@ -404,27 +437,28 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          title,
+          title.toUpperCase(),
           style: GoogleFonts.inter(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+            letterSpacing: 2.5,
           ),
         ),
         if (actionLabel != null)
           TextButton(
             onPressed: onAction,
             child: Text(
-              actionLabel!,
+              actionLabel!.toUpperCase(),
               style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
                 color: AppColors.primary,
+                letterSpacing: 1,
               ),
             ),
           ),
@@ -432,7 +466,8 @@ class SectionHeader extends StatelessWidget {
     );
   }
 }
-// ─── Adaptive Status Badge ──────────────────────────────────────────────────
+
+// ─── Adaptive Status Badge (Stark) ──────────────────────────────────────────────────
 class StatusBadge extends StatelessWidget {
   final String label;
   final Color color;
@@ -445,22 +480,23 @@ class StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        borderRadius: BorderRadius.circular(2),
       ),
       child: Text(
-        label,
+        label.toUpperCase(),
         style: GoogleFonts.inter(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
           color: color,
-          letterSpacing: 0.5,
+          letterSpacing: 1,
         ),
       ),
     );
   }
 }
 
-// ─── Premium Gradient Button ─────────────────────────────────────────────────
+// ─── Premium Stark Button ─────────────────────────────────────────────────
 class GradientButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -479,43 +515,31 @@ class GradientButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 56,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: gradient ?? AppColors.primaryGradient,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: (gradient ?? AppColors.primaryGradient).colors.last.withValues(alpha: 0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+      height: 64,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+            ],
+            Text(
+              label.toUpperCase(),
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: 2,
+              ),
             ),
           ],
-        ),
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-              ],
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

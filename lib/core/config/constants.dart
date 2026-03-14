@@ -1,78 +1,81 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Shared Accents
-  static const primary = Color(0xFF6366F1); // Indigo
-  static const secondary = Color(0xFFF43F5E); // Rose
-  static const accent = Color(0xFF10B981); // Emerald
-  static const amber = Color(0xFFF59E0B);
+  // Brand Colors (Stark Aesthetic)
+  static const primary = Color(0xFFFF0000); // Stark Red
+  static const secondary = Color(0xFFFFFFFF); // Pure White
+  static const accent = Color(0xFF1A1A1A); // Stark Grey
+  static const amber = Color(0xFFFFD700); 
   
   // Semantic
-  static const success = Color(0xFF10B981);
-  static const warning = Color(0xFFF59E0B);
-  static const error = Color(0xFFEF4444);
+  static const success = Color(0xFF00FF00); 
+  static const warning = Color(0xFFFF8800);
+  static const error = Color(0xFFFF0000); // Same as primary for this theme
 
-  // Light Palette (Inspired by Image 1)
-  static const lightBackground = Color(0xFFF1F5F9);
-  static const lightSurface = Color(0xFFFFFFFF);
-  static const lightCard = Color(0xFFFFFFFF);
-  static const lightTextPrimary = Color(0xFF0F172A);
-  static const lightTextSecondary = Color(0xFF64748B);
-  static const lightTextMuted = Color(0xFF94A3B8);
-  static const lightDivider = Color(0xFFE2E8F0);
-  static final lightGlass = Colors.white.withValues(alpha: 0.7);
+  // Light Palette (Stark White / Industrial)
+  static const lightBackground = Color(0xFFFFFFFF); // Pure White
+  static const lightSurface = Color(0xFFF8F8F8); 
+  static const lightCard = Color(0xFFFFFFFF); 
+  static const lightTextPrimary = Color(0xFF000000); 
+  static const lightTextSecondary = Color(0xFF505050); 
+  static const lightTextMuted = Color(0xFFAAAAAA);
+  static const lightDivider = Color(0xFFE0E0E0);
+  static final lightGlass = Colors.black.withValues(alpha: 0.05);
 
-  // Dark Palette (Inspired by Image 2 - Ginko)
-  static const darkBackground = Color(0xFF000000); // Pure black for AMOLED
-  static const darkSurface = Color(0xFF0B0E11);
-  static const darkCard = Color(0xFF15191C);
-  static const darkTextPrimary = Color(0xFFFFFFFF);
-  static const darkTextSecondary = Color(0xFF94A3B8);
-  static const darkTextMuted = Color(0xFF64748B);
-  static const darkDivider = Color(0xFF1E293B);
-  static final darkGlass = Colors.white.withValues(alpha: 0.08);
+  // Dark Palette (Ultimate Premium Dark/OLED Black)
+  static const darkBackground = Color(0xFF000000); // Pure OLED Black
+  static const darkSurface = Color(0xFF080808); 
+  static const darkCard = Color(0xFF0F0F0F); 
+  static const darkTextPrimary = Color(0xFFFFFFFF); 
+  static const darkTextSecondary = Color(0xFFA0A0A0); 
+  static const darkTextMuted = Color(0xFF404040);
+  static const darkDivider = Color(0xFF1A1A1A);
+  static final darkGlass = Colors.white.withValues(alpha: 0.05);
+  
+  // Theme-aware Grid Colors
+  static final lightGridColor = Colors.black.withValues(alpha: 0.03);
+  static final darkGridColor = Colors.white.withValues(alpha: 0.03);
+  static final starkGrid = darkGridColor; // Legacy support
 
-  static const surface = lightSurface; // Default to light
-
-  // Premium Gradients
+  // Gradients for the "Stacked" Cards and Buttons (Neon & Dynamic)
   static const primaryGradient = LinearGradient(
-    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+    colors: [Color(0xFF00E5FF), Color(0xFF007BFF)], // Cyan to Deep Blue
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const cardGradientBlue = LinearGradient(
+    colors: [Color(0xFF7C4DFF), Color(0xFF2979FF)], // Violet to Bright Blue
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const cardGradientOrange = LinearGradient(
+    colors: [Color(0xFFFF2A5F), Color(0xFFFF7043)], // Neon Pink to Orange
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const secondaryGradient = LinearGradient(
-    colors: [Color(0xFFF43F5E), Color(0xFFFB7185)],
+    colors: [Color(0xFF00E5FF), Color(0xFF1DE9B6)], // Cyan to Teal
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const accentGradient = LinearGradient(
-    colors: [Color(0xFF10B981), Color(0xFF34D399)],
+    colors: [Color(0xFFD500F9), Color(0xFF651FFF)], // Deep Purple to Neon Violet
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const sunsetGradient = LinearGradient(
-    colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const blueVioletGradient = LinearGradient(
-    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+    colors: [Color(0xFFFFAB00), Color(0xFFFF6D00)], // Neon Gold to Deep Orange
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const darkGradient = LinearGradient(
-    colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  static const glassGradient = LinearGradient(
-    colors: [Colors.white24, Colors.white10],
+    colors: [Color(0xFF1A1A24), Color(0xFF0A0A0F)], // Premium metallic dark
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

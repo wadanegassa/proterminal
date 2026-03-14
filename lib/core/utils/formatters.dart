@@ -8,6 +8,13 @@ class Formatters {
     ).format(amount);
   }
 
+  static String compactCurrency(double amount) {
+    return NumberFormat.compactCurrency(
+      symbol: '\$',
+      decimalDigits: 0,
+    ).format(amount);
+  }
+
   static String date(DateTime date) {
     return DateFormat.yMMMd().add_jm().format(date);
   }

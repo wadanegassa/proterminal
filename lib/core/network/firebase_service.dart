@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 // Removed unused import
-import '../../features/auth/domain/user_model.dart';
-import '../../features/transaction/domain/transaction_model.dart';
-import '../../features/merchant/domain/merchant_model.dart';
+import 'package:propay/features/auth/domain/user_model.dart';
+import 'package:propay/features/transaction/domain/transaction_model.dart';
+import 'package:propay/features/merchant/domain/merchant_model.dart';
+import 'package:propay/features/wallet/domain/card_model.dart';
 
 class FirebaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -99,5 +100,65 @@ class FirebaseService {
   Stream<List<MerchantModel>> getMerchants() {
     return _db.collection('merchants').snapshots().map((snap) =>
         snap.docs.map((d) => MerchantModel.fromMap(d.data(), d.id)).toList());
+  }
+
+  // ── Cards ─────────────────────────────────────────────────────────────────
+  Stream<List<CardModel>> getCards(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('cards')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => CardModel.fromMap(d.data(), d.id))
+            .toList());
+  }
+
+  Future<void> addCard(String uid, CardModel card) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('cards')
+        .add(card.toMap());
+  }
+
+  Future<void> deleteCard(String uid, String cardId) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('cards')
+        .doc(cardId)
+        .delete();
+  }
+
+  Future<List<UserModel>> searchUsers(String query) async {
+    if (query.isEmpty) return [];
+    
+    // Search by name (starts with) or phone
+    final nameSnap = await _db
+        .collection('users')
+        .where('name', isGreaterThanOrEqualTo: query)
+        .where('name', isLessThanOrEqualTo: '$query\uf8ff')
+        .limit(5)
+        .get();
+        
+    final phoneSnap = await _db
+        .collection('users')
+        .where('phone', isEqualTo: query)
+        .limit(1)
+        .get();
+
+    final users = nameSnap.docs
+        .map((d) => UserModel.fromMap(d.data(), d.id))
+        .toList();
+        
+    for (var d in phoneSnap.docs) {
+      final user = UserModel.fromMap(d.data(), d.id);
+      if (!users.any((u) => u.uid == user.uid)) {
+        users.add(user);
+      }
+    }
+    
+    return users;
   }
 }

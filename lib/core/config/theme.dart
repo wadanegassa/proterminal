@@ -7,13 +7,12 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
+      colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         secondary: AppColors.secondary,
         surface: AppColors.lightSurface,
         onSurface: AppColors.lightTextPrimary,
-        brightness: Brightness.light,
+        error: AppColors.error,
       ),
       scaffoldBackgroundColor: AppColors.lightBackground,
       textTheme: GoogleFonts.interTextTheme().apply(
@@ -27,16 +26,19 @@ class AppTheme {
         iconTheme: const IconThemeData(color: AppColors.lightTextPrimary),
         titleTextStyle: GoogleFonts.inter(
           fontSize: 18,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w900,
           color: AppColors.lightTextPrimary,
         ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.lightCard,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: AppColors.lightDivider),
+        ),
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.lightDivider),
+      dividerTheme: const DividerThemeData(color: AppColors.lightDivider, thickness: 1),
     );
   }
 
@@ -44,13 +46,12 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
+      colorScheme: const ColorScheme.dark(
         primary: AppColors.primary,
         secondary: AppColors.secondary,
         surface: AppColors.darkSurface,
         onSurface: AppColors.darkTextPrimary,
-        brightness: Brightness.dark,
+        error: AppColors.error,
       ),
       scaffoldBackgroundColor: AppColors.darkBackground,
       textTheme: GoogleFonts.interTextTheme().apply(
@@ -64,16 +65,19 @@ class AppTheme {
         iconTheme: const IconThemeData(color: AppColors.darkTextPrimary),
         titleTextStyle: GoogleFonts.inter(
           fontSize: 18,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w900,
           color: AppColors.darkTextPrimary,
         ),
       ),
       cardTheme: CardThemeData(
         color: AppColors.darkCard,
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: const BorderSide(color: AppColors.darkDivider),
+        ),
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.darkDivider),
+      dividerTheme: const DividerThemeData(color: AppColors.darkDivider, thickness: 1),
     );
   }
 }
