@@ -1,51 +1,40 @@
-# ProPay - Production-Ready Flutter Fintech App
+# ProTerminal - Unified Merchant & Product Intelligence Hub
 
-ProPay is a modern digital wallet and QR payment system built with Flutter and Firebase.
+ProTerminal is a high-performance business operations hub designed to manage multi-platform e-commerce (ProShop, ProMarket) and centralize global merchant intelligence.
 
-## Features
-- **Secure Wallet**: Atomic balance updates via Firebase Functions.
-- **P2P Transfers**: Send money to other users securely.
-- **QR Payments**: Scan merchant QR codes (static/dynamic) for instant payments.
-- **Payment Gateway**: Integrated with Stripe and Chapa.
-- **Modern UI**: Sleek fintech design with glassmorphism and smooth gradients.
-- **Real-time**: Live balance and transaction history updates using Riverpod and Firestore Streams.
+## Core Pillars
+- **Platform Intelligence**: Cross-platform inventory management for ProShop, ProFood, and beyond.
+- **Merchant Wallet**: Secure atomic balance updates and gateway integrations (Stripe, Chapa).
+- **ProTerminal Signal**: Real-time revenue monitoring and activity logs for distributed business units.
+- **Advanced Analytics**: Granular performance metrics including Category Profitability and AOV per Platform.
+- **QR Payment Ecosystem**: Native support for dynamic merchant QR generation and scanning.
+
+## Tech Stack
+- **Frontend**: Flutter (Riverpod for state, FL Chart for intelligence visualization).
+- **Backend**: Firebase (Firestore, Cloud Functions, Authentication).
+- **Styling**: Cyber-Fintech aesthetics with adaptive Dark/Light modes.
 
 ## Setup Instructions
 
 ### 1. Firebase Configuration
 - Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
-- Enable **Authentication** (Email/Password).
-- Enable **Cloud Firestore** and deploy `firestore.rules`.
-- Enable **Cloud Functions** (Requires Blaze Plan).
-- Use `flutterfire configure` to generate `lib/firebase_options.dart`.
+- Enable **Authentication**, **Cloud Firestore**, and **Cloud Functions**.
+- Deploy `firestore.rules` and `functions/`.
+- Use `flutterfire configure` to generate configuration.
 
-### 2. Backend Deployment (Functions)
-```bash
-cd functions
-npm install
-firebase deploy --only functions
-```
-
-### 3. Payment Keys
-Set your Stripe and Chapa keys in the Firebase Functions configuration:
+### 2. Payment Gateway Configuration
+Set your merchant keys in the Firebase Functions environment:
 ```bash
 firebase functions:config:set stripe.secret="YOUR_STRIPE_SECRET" chapa.secret="YOUR_CHAPA_SECRET"
 ```
 
-### 4. Running the App
+### 3. Execution
 ```bash
 flutter pub get
 flutter run
 ```
 
-## Project Structure
-- `lib/models`: Data models with Firestore serialization.
-- `lib/providers`: State management using Riverpod.
-- `lib/services`: Communication with Firebase and Payments.
-- `lib/screens`: All UI screens (Home, Login, Send Money, etc.).
-- `lib/widgets`: Reusable premium UI components.
-- `functions/index.js`: Core backend logic for secure transactions.
-
-## Security
-- **Atomic Operations**: All wallet transfers and payments use Firestore transactions within Cloud Functions to prevent race conditions and data corruption.
-- **Security Rules**: Firestore rules prevent direct balance manipulation from the client side.
+## Security & Reliability
+- **Atomic Ledgers**: Transactions are processed via Cloud Functions to ensure balance integrity.
+- **Security Rules**: Robust Firestore rules prevent unauthorized ledger manipulation.
+- **Product Mapping**: Smart attribution of gateway signals (Stripe/Chapa) to specific product ecosystems.

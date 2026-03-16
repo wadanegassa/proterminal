@@ -20,7 +20,9 @@ service cloud.firestore {
     // Transaction rules
     match /transactions/{transactionId} {
       allow read: if request.auth != null && 
-                  (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+                  (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+                   resource.data.senderId == request.auth.uid || 
+                   resource.data.receiverId == request.auth.uid);
       allow write: if false; // All transactions must be created by Cloud Functions
     }
   }

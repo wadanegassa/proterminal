@@ -10,5 +10,5 @@ class PaymentConfig {
   // App Specific
   static const String currency = 'USD';
   static const String localCurrency = 'ETB';
-  static const String merchantDisplayName = 'ProPay Global';
+  static const String merchantDisplayName = 'ProTerminal Global';
 }
