@@ -5,8 +5,6 @@ import '../../../core/config/constants.dart';
 import '../../../core/utils/validators.dart';
 import 'auth_provider.dart';
 
-enum AuthMode { login, register }
-
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
 
@@ -16,14 +14,10 @@ class AuthScreen extends ConsumerStatefulWidget {
 
 class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  AuthMode _mode = AuthMode.login;
   
   // Controllers
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _confirmPassCtrl = TextEditingController();
   
   bool _obscurePass = true;
   late AnimationController _animationController;
@@ -47,45 +41,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
   void dispose() {
     _emailCtrl.dispose();
     _passCtrl.dispose();
-    _nameCtrl.dispose();
-    _phoneCtrl.dispose();
-    _confirmPassCtrl.dispose();
     _animationController.dispose();
     super.dispose();
-  }
-
-  void _toggleMode() {
-    setState(() {
-      _mode = _mode == AuthMode.login ? AuthMode.register : AuthMode.login;
-      _formKey.currentState?.reset();
-    });
-    _animationController.reset();
-    _animationController.forward();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     
-    bool ok;
-    if (_mode == AuthMode.login) {
-      ok = await ref.read(authProvider.notifier).signIn(
-        _emailCtrl.text, 
-        _passCtrl.text,
-      );
-    } else {
-      ok = await ref.read(authProvider.notifier).signUp(
-        email: _emailCtrl.text,
-        password: _passCtrl.text,
-        name: _nameCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
-      );
-    }
+    final ok = await ref.read(authProvider.notifier).signIn(
+      _emailCtrl.text, 
+      _passCtrl.text,
+    );
 
     if (!ok && mounted) {
       final err = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(err ?? '${_mode == AuthMode.login ? 'Login' : 'Registration'} failed'),
+          content: Text(err ?? 'Login failed'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -115,10 +87,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final h = constraints.maxHeight;
-                // Responsive multipliers based on a target height of 750px
                 final scale = (h / 750).clamp(0.6, 1.0);
-                final headerGap = 24.0 * scale;
-                final fieldGap = 8.0 * scale;
+                final headerGap = 48.0 * scale;
+                final fieldGap = 12.0 * scale;
 
                 return Center(
                   child: SingleChildScrollView(
@@ -136,43 +107,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                               key: _formKey,
                             child: Column(
                               children: [
-                                if (_mode == AuthMode.register) ...[
-                                  _buildStarkTextField(
-                                    controller: _nameCtrl,
-                                    label: 'FULL LEGAL IDENTIFIER',
-                                    hint: 'JOHN DOE',
-                                    icon: Icons.person_outline_rounded,
-                                    validator: Validators.required,
-                                    isDark: isDark,
-                                    scale: scale,
-                                  ),
-                                  SizedBox(height: fieldGap),
-                                ],
                                 _buildStarkTextField(
                                   controller: _emailCtrl,
-                                  label: 'SECURE EMAIL IDENTIFIER',
-                                  hint: 'ID@PROPAY.SYSTEM',
+                                  label: 'CORPORATE IDENTIFIER',
+                                  hint: 'ID@COMPANY.COM',
                                   icon: Icons.alternate_email_rounded,
                                   validator: Validators.email,
                                   isDark: isDark,
                                   scale: scale,
                                 ),
-                                if (_mode == AuthMode.register) ...[
-                                  SizedBox(height: fieldGap),
-                                  _buildStarkTextField(
-                                    controller: _phoneCtrl,
-                                    label: 'COMMUNICATION LINE',
-                                    hint: '+251...',
-                                    icon: Icons.phone_outlined,
-                                    validator: Validators.phone,
-                                    isDark: isDark,
-                                    scale: scale,
-                                  ),
-                                ],
                                 SizedBox(height: fieldGap),
                                 _buildStarkTextField(
                                   controller: _passCtrl,
-                                  label: 'ENCRYPTION KEY',
+                                  label: 'ACCESS KEY',
                                   hint: '••••••••',
                                   icon: Icons.lock_outline_rounded,
                                   validator: Validators.password,
@@ -188,44 +135,25 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                                     onPressed: () => setState(() => _obscurePass = !_obscurePass),
                                   ),
                                 ),
-                                if (_mode == AuthMode.register) ...[
-                                  SizedBox(height: fieldGap),
-                                  _buildStarkTextField(
-                                    controller: _confirmPassCtrl,
-                                    label: 'VERIFY KEY',
-                                    hint: '••••••••',
-                                    icon: Icons.lock_outline_rounded,
-                                    isDark: isDark,
-                                    scale: scale,
-                                    validator: (v) {
-                                      if (v == null || v.isEmpty) return 'Confirm your password';
-                                      if (v != _passCtrl.text) return 'Keys do not match';
-                                      return null;
-                                    },
-                                    obscureText: true,
-                                  ),
-                                ],
                                 
-                                if (_mode == AuthMode.login) ...[
-                                  SizedBox(height: 12 * scale),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: GestureDetector(
-                                      onTap: () {},
-                                      child: Text(
-                                        'FORGOT ACCESS KEY?',
-                                        style: GoogleFonts.inter(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 9 * scale,
-                                          letterSpacing: 1,
-                                        ),
+                                SizedBox(height: 12 * scale),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: GestureDetector(
+                                    onTap: () {},
+                                    child: Text(
+                                      'FORGOT ACCESS KEY?',
+                                      style: GoogleFonts.inter(
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 9 * scale,
+                                        letterSpacing: 1,
                                       ),
                                     ),
                                   ),
-                                ],
+                                ),
 
-                                SizedBox(height: 24 * scale),
+                                SizedBox(height: 48 * scale),
                                 if (authState.isLoading)
                                   const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primary)))
                                 else
@@ -241,7 +169,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                                       ),
                                       onPressed: _submit,
                                       child: Text(
-                                        _mode == AuthMode.login ? 'INITIALIZE SESSION' : 'EXECUTE ONBOARDING',
+                                        'INITIALIZE SESSION',
                                         style: GoogleFonts.inter(
                                           fontWeight: FontWeight.w900,
                                           fontSize: 13 * scale,
@@ -250,9 +178,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
                                       ),
                                     ),
                                   ),
-
-                                SizedBox(height: 20 * scale),
-                                _buildToggleOption(isDark, scale),
                               ],
                             ),
                           ),
@@ -275,7 +200,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          'PROPAY SYSTEM',
+          'PROADMIN TERMINAL',
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
             fontSize: 9 * scale,
@@ -284,23 +209,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
             letterSpacing: 4 * scale,
           ),
         ),
-        SizedBox(height: 8 * scale),
+        SizedBox(height: 12 * scale),
         Text(
-          _mode == AuthMode.login ? 'AUTHORIZED\nACCESS' : 'INITIALIZE\nACCOUNT',
+          'ADMINISTRATOR\nACCESS',
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
-            fontSize: (_mode == AuthMode.login ? 48 : 44) * scale,
+            fontSize: 48 * scale,
             fontWeight: FontWeight.w900,
             color: isDark ? Colors.white : Colors.black,
             letterSpacing: -2.0 * scale,
             height: 1.0,
           ),
         ),
-        SizedBox(height: 12 * scale),
+        SizedBox(height: 16 * scale),
         Text(
-          _mode == AuthMode.login 
-            ? 'Secure gateway to premium digital assets.' 
-            : 'Initialize secure onboarding process.',
+          'Multi-platform business intelligence & revenue monitoring.',
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
             fontSize: 11 * scale,
@@ -312,35 +235,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> with SingleTickerProvid
     );
   }
 
-  Widget _buildToggleOption(bool isDark, double scale) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          _mode == AuthMode.login ? "NEW CLIENT? " : "AUTHORIZED ALREADY? ",
-          style: GoogleFonts.inter(
-            color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-            fontWeight: FontWeight.w900,
-            fontSize: 9 * scale,
-            letterSpacing: 1 * scale,
-          ),
-        ),
-        GestureDetector(
-          onTap: _toggleMode,
-          child: Text(
-            _mode == AuthMode.login ? 'REGISTER ACCOUNT' : 'ACCESS LOGIN',
-            style: GoogleFonts.inter(
-              color: isDark ? Colors.white : Colors.black,
-              fontWeight: FontWeight.w900,
-              fontSize: 9 * scale,
-              letterSpacing: 1 * scale,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildStarkTextField({
     required TextEditingController controller,

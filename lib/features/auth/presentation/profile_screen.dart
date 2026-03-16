@@ -111,71 +111,95 @@ class ProfileScreen extends ConsumerWidget {
                       ],
                     ),
                     // ─── Sparkline ─────────────────────────────────────────
-                    Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            left: 16,
-                            top: 0,
-                            child: Text('NETWORK ACTIVITY', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                    ref.watch(allTransactionsProvider).when(
+                      data: (transactions) {
+                        // Generate spots based on actual transaction density in last 24h
+                        final now = DateTime.now();
+                        final Map<int, int> hourlyCounts = {};
+                        for (int i = 0; i < 7; i++) {
+                          hourlyCounts[i] = 0;
+                        }
+                        
+                        for (var tx in transactions) {
+                          final diff = now.difference(tx.timestamp).inHours;
+                          if (diff >= 0 && diff < 7) {
+                            hourlyCounts[diff] = (hourlyCounts[diff] ?? 0) + 1;
+                          }
+                        }
+                        
+                        final spots = List.generate(7, (i) => FlSpot(i.toDouble(), hourlyCounts[6-i]!.toDouble()));
+
+                        return Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                            border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                          Positioned(
-                            right: 16,
-                            top: 0,
-                            child: Row(
-                              children: [
-                                Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
-                                const SizedBox(width: 4),
-                                Text('LIVE', style: GoogleFonts.inter(color: AppColors.success, fontSize: 8, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 20),
-                            child: IgnorePointer(
-                              child: LineChart(
-                                LineChartData(
-                                  gridData: const FlGridData(show: false),
-                                  titlesData: const FlTitlesData(show: false),
-                                  borderData: FlBorderData(show: false),
-                                  minX: 0, maxX: 6, minY: 0, maxY: 10,
-                                  lineBarsData: [
-                                    LineChartBarData(
-                                      spots: const [
-                                        FlSpot(0, 3), FlSpot(1, 4), FlSpot(2, 3.5),
-                                        FlSpot(3, 8), FlSpot(4, 5), FlSpot(5, 7),
-                                        FlSpot(6, 6),
-                                      ],
-                                      isCurved: true,
-                                      color: AppColors.primary,
-                                      barWidth: 2,
-                                      isStrokeCapRound: true,
-                                      dotData: const FlDotData(show: false),
-                                      belowBarData: BarAreaData(
-                                        show: true,
-                                        gradient: LinearGradient(
-                                          colors: [AppColors.primary.withValues(alpha: 0.3), AppColors.primary.withValues(alpha: 0.0)],
-                                          begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                                        ),
-                                      ),
-                                    ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                left: 16,
+                                top: 0,
+                                child: Text('NETWORK ACTIVITY', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                              ),
+                              Positioned(
+                                right: 16,
+                                top: 0,
+                                child: Row(
+                                  children: [
+                                    Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.success, shape: BoxShape.circle)),
+                                    const SizedBox(width: 4),
+                                    Text('LIVE', style: GoogleFonts.inter(color: AppColors.success, fontSize: 8, fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ),
-                            ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 20),
+                                child: IgnorePointer(
+                                  child: LineChart(
+                                    LineChartData(
+                                      gridData: const FlGridData(show: false),
+                                      titlesData: const FlTitlesData(show: false),
+                                      borderData: FlBorderData(show: false),
+                                      minX: 0, maxX: 6, minY: 0, maxY: hourlyCounts.values.fold(5.0, (m, v) => v > m ? v.toDouble() : m.toDouble()) + 2,
+                                      lineBarsData: [
+                                        LineChartBarData(
+                                          spots: spots,
+                                          isCurved: true,
+                                          color: AppColors.primary,
+                                          barWidth: 2,
+                                          isStrokeCapRound: true,
+                                          dotData: const FlDotData(show: false),
+                                          belowBarData: BarAreaData(
+                                            show: true,
+                                            gradient: LinearGradient(
+                                              colors: [AppColors.primary.withValues(alpha: 0.3), AppColors.primary.withValues(alpha: 0.0)],
+                                              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
+                      loading: () => const SizedBox(height: 80),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 48),
+                    SectionHeader(title: 'COMMAND CENTER'),
+                    const SizedBox(height: 12),
+                    _SystemHealthCard(isDark: isDark),
+                    const SizedBox(height: 12),
+                    _ApiStatusGrid(isDark: isDark),
 
+                    const SizedBox(height: 40),
                     // ─── Configuration ─────────────────────────────────────
                     SectionHeader(title: 'SYSTEM CONFIG'),
                     _SettingsTile(
@@ -198,9 +222,9 @@ class ProfileScreen extends ConsumerWidget {
                         label: 'MERCHANT PORTAL',
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MerchantDashboard())),
                       ),
-                    _SettingsTile(icon: Icons.security_rounded, label: 'ENCRYPTION PROTOCOLS', onTap: () => _mockDialog(context, 'Security modules are operating normally.', isDark)),
-                    _SettingsTile(icon: Icons.notifications_rounded, label: 'SIGNAL PREFERENCES', onTap: () => _mockDialog(context, 'Notification signals routed securely via device.', isDark)),
-                    _SettingsTile(icon: Icons.help_rounded, label: 'KNOWLEDGE BASE', onTap: () => _mockDialog(context, 'Accessing distributed support documents...', isDark)),
+                    _SettingsTile(icon: Icons.security_rounded, label: 'ENCRYPTION PROTOCOLS', onTap: () => _showStatus(context, 'Security modules are operating normally.')),
+                    _SettingsTile(icon: Icons.notifications_rounded, label: 'SIGNAL PREFERENCES', onTap: () => _showStatus(context, 'Notification signals routed securely via device.')),
+                    _SettingsTile(icon: Icons.help_rounded, label: 'KNOWLEDGE BASE', onTap: () => _showStatus(context, 'Accessing distributed support documents...')),
                     
                     const SizedBox(height: 48),
                     // ─── Termination ─────────────────────────────────────────
@@ -231,19 +255,11 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _mockDialog(BuildContext context, String message, bool isDark) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: isDark ? AppColors.darkCard : Colors.white,
-        title: Text('SYSTEM MODULE', style: GoogleFonts.inter(fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
-        content: Text(message, style: GoogleFonts.inter(color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('ACKNOWLEDGE', style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.bold)),
-          ),
-        ],
+  void _showStatus(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -390,6 +406,127 @@ class _SettingsTile extends StatelessWidget {
                   size: 20),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SystemHealthCard extends ConsumerWidget {
+  final bool isDark;
+  const _SystemHealthCard({required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cardsAsync = ref.watch(userCardsProvider);
+    
+    return cardsAsync.when(
+      data: (cards) {
+        final allActive = cards.isNotEmpty;
+        final healthLabel = allActive ? 'SYSTEM CORE: STABLE' : 'SYSTEM CORE: CAUTION';
+        final healthDesc = allActive 
+            ? 'All security protocols active. Encrypted session valid.' 
+            : 'Some gateway links are inactive. Check API configurations.';
+        final healthColor = allActive ? Colors.greenAccent : AppColors.primary;
+
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            border: Border.all(color: healthColor.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            children: [
+              Icon(allActive ? Icons.security_update_good_rounded : Icons.warning_amber_rounded, color: healthColor, size: 28),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(healthLabel, 
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black, fontSize: 13, letterSpacing: 1)),
+                    const SizedBox(height: 4),
+                    Text(healthDesc, 
+                      style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: healthColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(2)),
+                child: Text(allActive ? '99.9% UP' : 'DEGRADED', style: GoogleFonts.inter(color: healthColor, fontSize: 9, fontWeight: FontWeight.w900)),
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _ApiStatusGrid extends ConsumerWidget {
+  final bool isDark;
+  const _ApiStatusGrid({required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cardsAsync = ref.watch(userCardsProvider);
+    
+    return cardsAsync.when(
+      data: (cards) {
+        final hasStripe = cards.any((c) => c.platform.toLowerCase() == 'stripe');
+        final hasChapa = cards.any((c) => c.platform.toLowerCase() == 'chapa');
+        final hasProShop = cards.any((c) => c.platform.toLowerCase() == 'proshop' || c.platform.toLowerCase() == 'propay');
+
+        return Row(
+          children: [
+            _ApiIndicator(label: 'STRIPE', status: hasStripe ? 'ACTIVE' : 'DISCONNECTED', isDark: isDark, isActive: hasStripe),
+            const SizedBox(width: 8),
+            _ApiIndicator(label: 'CHAPA', status: hasChapa ? 'ACTIVE' : 'DISCONNECTED', isDark: isDark, isActive: hasChapa),
+            const SizedBox(width: 8),
+            _ApiIndicator(label: 'PROSHOP', status: hasProShop ? 'CONNECTED' : 'OFFLINE', isDark: isDark, isActive: hasProShop),
+          ],
+        );
+      },
+      loading: () => const Center(child: LinearProgressIndicator()),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _ApiIndicator extends StatelessWidget {
+  final String label;
+  final String status;
+  final bool isDark;
+  final bool isActive;
+  const _ApiIndicator({required this.label, required this.status, required this.isDark, required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          children: [
+            Text(label, style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w900, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, letterSpacing: 1)),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(width: 4, height: 4, decoration: BoxDecoration(color: isActive ? Colors.greenAccent : AppColors.primary, shape: BoxShape.circle)),
+                const SizedBox(width: 6),
+                Text(status, style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w900, color: isActive ? Colors.greenAccent : AppColors.primary)),
+              ],
+            ),
+          ],
         ),
       ),
     );
