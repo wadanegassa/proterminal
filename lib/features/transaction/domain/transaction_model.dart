@@ -13,6 +13,9 @@ class TransactionModel {
   final double amount;
   final TransactionType type;
   final TransactionStatus status;
+  final String? platform; // e.g., 'ProShop', 'ProDev', 'Office', 'Stripe', 'Chapa'
+  final String? productId; 
+  final bool isRevenue;
   final DateTime timestamp;
   final String? note;
 
@@ -25,6 +28,9 @@ class TransactionModel {
     required this.amount,
     required this.type,
     required this.status,
+    this.platform,
+    this.productId,
+    this.isRevenue = true,
     required this.timestamp,
     this.note,
   });
@@ -63,6 +69,9 @@ class TransactionModel {
       amount: ((data['amount'] ?? 0) as num).toDouble(),
       type: parseType(data['type'] as String?),
       status: parseStatus(data['status'] as String?),
+      platform: data['platform'] as String?,
+      productId: data['productId'] as String?,
+      isRevenue: data['isRevenue'] as bool? ?? true,
       timestamp:
           (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       note: data['note'] as String?,
@@ -77,7 +86,26 @@ class TransactionModel {
         'amount': amount,
         'type': type.name,
         'status': status.name,
+        'platform': platform,
+        'productId': productId,
+        'isRevenue': isRevenue,
         'timestamp': Timestamp.fromDate(timestamp),
         'note': note,
       };
+
+  /// For the business owner: Income is when money is received via a platform or system.
+  bool get isIncome => isRevenue && (receiverId == 'Merchant' || receiverId.isNotEmpty);
+
+  /// Generates a CSV row for this transaction
+  String toCsvRow() => [
+        id,
+        timestamp.toIso8601String(),
+        senderName ?? senderId,
+        receiverName ?? receiverId,
+        amount.toString(),
+        platform ?? 'Main',
+        type.name,
+        status.name,
+        note ?? '',
+      ].map((e) => '"$e"').join(',');
 }

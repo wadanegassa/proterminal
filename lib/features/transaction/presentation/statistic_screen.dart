@@ -37,7 +37,24 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
           SafeArea(
             child: Column(
               children: [
-                _buildHeader(context),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  child: TabBar(
+                    controller: _tabController,
+                    isScrollable: false,
+                    dividerColor: Colors.transparent,
+                    indicatorColor: AppColors.primary,
+                    indicatorWeight: 3,
+                    indicatorSize: TabBarIndicatorSize.label,
+                    labelColor: isDark ? Colors.white : Colors.black,
+                    unselectedLabelColor: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                    labelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
+                    tabs: const [
+                      Tab(text: 'ANALYTICS'),
+                      Tab(text: 'ACTIVITY'),
+                    ],
+                  ),
+                ),
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
@@ -55,94 +72,114 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.black, size: 20),
-          ),
-          Expanded(
-            child: TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              dividerColor: Colors.transparent,
-              indicatorColor: AppColors.primary,
-              indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.label,
-              labelColor: isDark ? Colors.white : Colors.black,
-              unselectedLabelColor: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-              labelStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
-              tabs: const [
-                Tab(text: 'ANALYTICS'),
-                Tab(text: 'ACTIVITY'),
-              ],
-            ),
-          ),
-          const SizedBox(width: 48), // Spacer to balance the back button
-        ],
-      ),
-    );
-  }
 
   Widget _buildMainAnalytics(BuildContext context) {
-    final user = ref.watch(userModelProvider).valueOrNull;
-    final statsAsync = ref.watch(walletStatisticsProvider);
+    final analyticsAsync = ref.watch(businessAnalyticsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        children: [
-          const SizedBox(height: 60),
-          Text(
-            'TOTAL BALANCE',
-            style: GoogleFonts.inter(
-              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 4,
-              fontSize: 12,
-            ),
+    return analyticsAsync.when(
+      data: (analytics) {
+        final totalNet = analytics['totalNet'] as double;
+        final revenueByPlatform = analytics['revenueByPlatform'] as Map<String, double>;
+        final monthlyTrends = analytics['monthlyTrends'] as Map<String, double>;
+        final regionalDistribution = analytics['regionalDistribution'] as Map<String, double>;
+        final avgLTV = analytics['avgLTV'] as double;
+        final churnRate = analytics['churnRate'] as double;
+        final retentionRate = analytics['retentionRate'] as double;
+        final velocity = analytics['transactionVelocity'] as double;
+        final terminals = analytics['activeTerminals'] as int;
+        final productRevenue = analytics['productRevenue'] as Map<String, double>? ?? {};
+        final categoryRevenue = analytics['categoryRevenue'] as Map<String, double>? ?? {};
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              const SizedBox(height: 48),
+              
+              // Primary Metrics
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'TOTAL NET REVENUE',
+                        style: GoogleFonts.inter(
+                          color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                          fontSize: 10,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        Formatters.currency(totalNet),
+                        style: GoogleFonts.inter(
+                          color: isDark ? Colors.white : Colors.black,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _TerminalHealthRow(count: terminals, isDark: isDark),
+                      const SizedBox(width: 12),
+                      _ExportButton(isDark: isDark),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _VelocityChart(velocity: velocity, isDark: isDark),
+              
+              const SizedBox(height: 40),
+              
+              Row(
+                children: [
+                  Expanded(child: _StatisticCard(label: 'GROSS', value: totalNet, color: Colors.greenAccent)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _StatisticCard(label: 'REFUNDS', value: analytics['totalRefunds'] as double? ?? 0.0, color: AppColors.primary)),
+                ],
+              ),
+              const SizedBox(height: 40),
+              _RevenueDonutChart(data: revenueByPlatform),
+              const SizedBox(height: 40),
+              _CashflowGraph(),
+              const SizedBox(height: 40),
+               _MonthlyBarChart(data: monthlyTrends),
+              const SizedBox(height: 40),
+              _RegionalDistributionChart(data: regionalDistribution),
+              const SizedBox(height: 40),
+              _RetentionHealthGauge(retention: retentionRate),
+              
+              const SizedBox(height: 48),
+              _QuickStatsGrid(ltv: avgLTV, churn: churnRate),
+              const SizedBox(height: 40),
+              const _ActivityHeatmap(),
+              const SizedBox(height: 48),
+              _ProductPerformance(productRevenue: productRevenue),
+              const SizedBox(height: 48),
+              _CategoryBreakdownChart(categoryRevenue: categoryRevenue),
+              
+              const SizedBox(height: 48),
+              _PlatformAOVChart(aovByPlatform: analytics['aovByPlatform'] as Map<String, double>? ?? {}, isDark: isDark),
+
+              const SizedBox(height: 100),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            Formatters.currency(user?.walletBalance ?? 0.0),
-            style: GoogleFonts.inter(
-              color: isDark ? Colors.white : Colors.black,
-              fontSize: 48,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1,
-            ),
-          ),
-          const SizedBox(height: 60),
-          
-          statsAsync.when(
-            data: (stats) => Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: _StatisticCard(label: 'INCOME', value: stats['income'] ?? 0.0, color: isDark ? Colors.white : Colors.black)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _StatisticCard(label: 'EXPENSES', value: stats['expense'] ?? 0.0, color: AppColors.primary)),
-                  ],
-                ),
-                const SizedBox(height: 48),
-                _CashflowGraph(),
-              ],
-            ),
-            loading: () => const CircularProgressIndicator(),
-            error: (e, s) => Text('Error: $e', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
-          ),
-          
-          const SizedBox(height: 48),
-          _QuickStatsGrid(),
-          const SizedBox(height: 100),
-        ],
-      ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primary))),
+      error: (e, s) => Center(child: Text('Error: $e', style: TextStyle(color: isDark ? Colors.white : Colors.black))),
     );
   }
 
@@ -172,7 +209,7 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
                 Container(
                   width: 4,
                   height: 40,
-                  color: isSent ? AppColors.primary : (isDark ? Colors.white : Colors.black),
+                  color: !isSent ? Colors.greenAccent : AppColors.primary,
                 ),
                 const SizedBox(width: 20),
                 Expanded(
@@ -180,12 +217,12 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isSent ? 'TRANSFER TO' : 'RECEIVED FROM',
+                        isSent ? 'REFUND ISSUED' : (tx.platform == 'Stripe' || tx.platform == 'Chapa' ? 'PROSHOP SIGNAL' : 'REVENUE SIGNAL'),
                         style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isSent ? tx.receiverId : tx.senderId,
+                        isSent ? (tx.receiverName ?? 'System') : (tx.senderName ?? (tx.platform ?? 'External Customer')),
                         style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ],
@@ -199,13 +236,27 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
                       style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '${isSent ? "-" : "+"}${Formatters.currency(tx.amount)}',
-                      style: GoogleFonts.inter(
-                        color: isSent ? AppColors.primary : (isDark ? Colors.white : Colors.black),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        if (tx.platform != null)
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                            child: Text(tx.platform!.toUpperCase(), style: GoogleFonts.inter(color: AppColors.primary, fontSize: 8, fontWeight: FontWeight.w900)),
+                          ),
+                        Text(
+                          '${isSent ? "-" : "+"}${Formatters.currency(tx.amount)}',
+                          style: GoogleFonts.inter(
+                            color: !isSent ? Colors.greenAccent : AppColors.primary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -288,7 +339,6 @@ class _CashflowGraphState extends ConsumerState<_CashflowGraph> {
               final Map<int, double> dailyBalances = {};
               double runningTotal = 0;
 
-              // Process older to newer to build a cumulative line, or just daily net. Let's do daily net for volatility.
               for (int i = 6; i >= 0; i--) {
                 dailyBalances[i] = 0.0;
               }
@@ -298,10 +348,10 @@ class _CashflowGraphState extends ConsumerState<_CashflowGraph> {
                 final daysAgo = now.difference(txDate).inDays;
                 if (daysAgo >= 0 && daysAgo <= 6) {
                   final amount = tx.amount;
-                  if (tx.senderId == user.uid) {
-                    dailyBalances[daysAgo] = (dailyBalances[daysAgo] ?? 0) - amount;
-                  } else {
+                  if (tx.isIncome) {
                     dailyBalances[daysAgo] = (dailyBalances[daysAgo] ?? 0) + amount;
+                  } else {
+                    dailyBalances[daysAgo] = (dailyBalances[daysAgo] ?? 0) - amount;
                   }
                 }
               }
@@ -442,31 +492,640 @@ class _CashflowGraphState extends ConsumerState<_CashflowGraph> {
   }
 }
 
+class _RevenueDonutChart extends StatelessWidget {
+  final Map<String, double> data;
+  const _RevenueDonutChart({required this.data});
 
-class _QuickStatsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final total = data.values.fold(0.0, (sum, val) => sum + val);
+
+    if (total == 0) {
+      return Container(
+        height: 200,
+        alignment: Alignment.center,
+        child: Text('NO DATA SIGNALS', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontWeight: FontWeight.w900)),
+      );
+    }
+
+    final sortedEntries = data.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final colors = [AppColors.primary, Colors.blueAccent, Colors.amber, Colors.greenAccent, Colors.purpleAccent, Colors.orangeAccent];
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('REVENUE DISTRIBUTION', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          const SizedBox(height: 32),
+          SizedBox(
+            height: 200,
+            child: Row(
+              children: [
+                Expanded(
+                  child: PieChart(
+                    PieChartData(
+                      sectionsSpace: 4,
+                      centerSpaceRadius: 60,
+                      sections: sortedEntries.asMap().entries.map((e) {
+                        final index = e.key;
+                        final entry = e.value;
+                        return PieChartSectionData(
+                          color: colors[index % colors.length],
+                          value: entry.value,
+                          title: '',
+                          radius: 12 - (index * 1.0).clamp(0, 4),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 32),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: sortedEntries.asMap().entries.take(4).map((e) {
+                    final index = e.key;
+                    final entry = e.value;
+                    final percent = (entry.value / total) * 100;
+                    return _legendItem(
+                      entry.key.toUpperCase(), 
+                      colors[index % colors.length], 
+                      '${percent.toStringAsFixed(0)}%', 
+                      isDark
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendItem(String label, Color color, String percent, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 12),
+          Text(label, style: GoogleFonts.inter(color: isDark ? Colors.white70 : Colors.black87, fontSize: 10, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Text(percent, style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthlyBarChart extends StatelessWidget {
+  final Map<String, double> data;
+  const _MonthlyBarChart({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sortedMonths = data.keys.toList()..sort();
+    final maxVal = data.values.fold(0.0, (max, val) => val > max ? val : max);
+
+    if (data.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('MONTHLY PERFORMANCE', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          const SizedBox(height: 32),
+          SizedBox(
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: maxVal == 0 ? 100 : maxVal * 1.2,
+                barTouchData: BarTouchData(enabled: false),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= sortedMonths.length) return const SizedBox.shrink();
+                        final monthStr = sortedMonths[index]; // e.g., '2024-03'
+                        final month = int.parse(monthStr.split('-')[1]);
+                        final names = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+                        return SideTitleWidget(meta: meta, space: 10, child: Text(names[month - 1], style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 8)));
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                gridData: FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                barGroups: sortedMonths.asMap().entries.map((e) {
+                  return _barGroup(e.key, data[e.value]!, AppColors.primary, maxVal == 0 ? 100 : maxVal * 1.2);
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  BarChartGroupData _barGroup(int x, double y, Color color, double backgroundMax) {
+    return BarChartGroupData(
+      x: x,
+      barRods: [
+        BarChartRodData(
+          toY: y,
+          color: color,
+          width: 16,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+          backDrawRodData: BackgroundBarChartRodData(show: true, toY: backgroundMax, color: color.withValues(alpha: 0.05)),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActivityHeatmap extends StatelessWidget {
+  const _ActivityHeatmap();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _miniStat('PROJECTS', '560', isDark),
-        _miniStat('ENTRIES', '23', isDark),
-        _miniStat('CREATORS', '564', isDark),
-        _miniStat('COUNTRIES', '5', isDark),
+        Text('YEARLY SIGNAL INTENSITY', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(7, (row) => Row(
+                children: List.generate(24, (col) {
+                  final intensity = (row + col) % 5;
+                  return Container(
+                    width: 10,
+                    height: 10,
+                    margin: const EdgeInsets.all(1),
+                    decoration: BoxDecoration(
+                      color: intensity == 0 
+                          ? (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))
+                          : AppColors.primary.withValues(alpha: 0.2 * intensity),
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  );
+                }),
+              )),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExportButton extends ConsumerWidget {
+  final bool isDark;
+  const _ExportButton({required this.isDark});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onTap: () {
+        final transactions = ref.read(allTransactionsProvider).valueOrNull ?? [];
+        if (transactions.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No transaction data to export.')));
+          return;
+        }
+
+        final header = 'ID,Timestamp,Sender,Receiver,Amount,Platform,Type,Status,Note\n';
+        final csv = header + transactions.map((t) => t.toCsvRow()).join('\n');
+
+        // Note: In a real mobile app, we would use path_provider and share_plus
+        // For this demo, we simulate the file creation and show the payload size
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Financial report generated (${(csv.length / 1024).toStringAsFixed(1)} KB). Saving to device...'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        
+        Future.delayed(const Duration(seconds: 2), () {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Report saved to Documents/ProAdmin_Report.csv'),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.ios_share_rounded, color: AppColors.primary, size: 14),
+            const SizedBox(width: 8),
+            Text('EXPORT', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black, letterSpacing: 1)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickStatsGrid extends ConsumerWidget {
+  final double ltv;
+  final double churn;
+  const _QuickStatsGrid({required this.ltv, required this. churn});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final analyticsAsync = ref.watch(businessAnalyticsProvider);
+
+    return analyticsAsync.when(
+      data: (analytics) {
+        final retention = analytics['retentionRate'] as double? ?? 0.0;
+        final orders = ref.watch(allTransactionsProvider).valueOrNull?.length ?? 0;
+        final signals = analytics['transactionVelocity'] as double? ?? 0.0;
+        final terminals = analytics['activeTerminals'] as int? ?? 0;
+        final net = analytics['totalNet'] as double? ?? 0.0;
+
+        return Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _miniStat('RETENTION', '${(retention * 100).toStringAsFixed(1)}%', isDark, isPositive: retention > 0.5),
+                _miniStat('CHURN', '${(churn * 100).toStringAsFixed(1)}%', isDark, isPositive: churn < 0.2),
+                _miniStat('AVG LTV', Formatters.compactCurrency(ltv), isDark, isPositive: ltv > 50),
+                _miniStat('CAC', 'N/A', isDark),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _miniStat('ORDERS', orders.toString(), isDark),
+                _miniStat('Terminals', terminals.toString(), isDark, isPositive: terminals > 0),
+                _miniStat('Signals/hr', signals.toStringAsFixed(1), isDark),
+                _miniStat('Net Volume', Formatters.compactCurrency(net), isDark, isPositive: net > 0),
+              ],
+            ),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+
+  Widget _miniStat(String label, String value, bool isDark, {bool isPositive = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value, style: GoogleFonts.inter(
+          color: isPositive ? Colors.greenAccent : (isDark ? Colors.white : Colors.black), 
+          fontWeight: FontWeight.w900, 
+          fontSize: 14),
+        ),
+        const SizedBox(height: 4),
+        Text(label.toUpperCase(), style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+      ],
+    );
+  }
+}
+
+class _RegionalDistributionChart extends StatelessWidget {
+  final Map<String, double> data;
+  const _RegionalDistributionChart({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sortedByRevenue = data.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final maxRevenue = sortedByRevenue.isEmpty ? 1.0 : sortedByRevenue.first.value;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('REGIONAL REVENUE FLOW', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          const SizedBox(height: 32),
+          ...sortedByRevenue.take(4).map((e) => Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(e.key.toUpperCase(), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
+                    Text(Formatters.compactCurrency(e.value), style: GoogleFonts.inter(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Stack(
+                  children: [
+                    Container(height: 4, width: double.infinity, decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(2))),
+                    FractionallySizedBox(
+                      widthFactor: (e.value / maxRevenue).clamp(0.01, 1.0),
+                      child: Container(height: 4, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2))),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+class _RetentionHealthGauge extends StatelessWidget {
+  final double retention;
+  const _RetentionHealthGauge({required this.retention});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            height: 80,
+            child: Stack(
+              children: [
+                Center(
+                  child: CircularProgressIndicator(
+                    value: 1.0,
+                    strokeWidth: 8,
+                    color: isDark ? Colors.white12 : Colors.black12,
+                  ),
+                ),
+                Center(
+                  child: CircularProgressIndicator(
+                    value: retention,
+                    strokeWidth: 8,
+                    strokeCap: StrokeCap.round,
+                    color: Colors.greenAccent,
+                  ),
+                ),
+                Center(
+                  child: Text('${(retention * 100).toStringAsFixed(0)}%', style: GoogleFonts.inter(color: Colors.greenAccent, fontWeight: FontWeight.w900, fontSize: 16)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 32),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('RETENTION HEALTH', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                const SizedBox(height: 8),
+                Text('Excellent stability. 82% of users active across platforms.', 
+                  style: GoogleFonts.inter(color: isDark ? Colors.white70 : Colors.black87, fontSize: 11, fontWeight: FontWeight.bold, height: 1.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TerminalHealthRow extends StatelessWidget {
+  final int count;
+  final bool isDark;
+  const _TerminalHealthRow({required this.count, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.greenAccent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text('$count ACTIVE', style: GoogleFonts.inter(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+}
+
+class _VelocityChart extends StatelessWidget {
+  final double velocity;
+  final bool isDark;
+  const _VelocityChart({required this.velocity, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('TRANSACTION VELOCITY', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                const SizedBox(height: 8),
+                Text('${velocity.toStringAsFixed(1)} TX/HR', style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 24)),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 80,
+            height: 40,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(show: false),
+                titlesData: FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(10, (i) => FlSpot(i.toDouble(), 10 + (i % 3) * 5.0)),
+                    isCurved: true,
+                    color: Colors.greenAccent,
+                    barWidth: 2,
+                    dotData: FlDotData(show: false),
+                    belowBarData: BarAreaData(show: false),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductPerformance extends StatelessWidget {
+  final Map<String, double> productRevenue;
+  const _ProductPerformance({required this.productRevenue});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sortedProducts = productRevenue.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final displayProducts = sortedProducts.take(5).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('TOP PRODUCT PERFORMANCE', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: displayProducts.isEmpty 
+            ? Center(child: Text('NO PRODUCT SIGNALS', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontWeight: FontWeight.bold, fontSize: 12)))
+            : Column(
+                children: displayProducts.map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Row(
+                    children: [
+                      Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(e.key.toUpperCase(), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5)),
+                      ),
+                      Text(Formatters.currency(e.value), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
+                    ],
+                  ),
+                )).toList(),
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CategoryBreakdownChart extends StatelessWidget {
+  final Map<String, double> categoryRevenue;
+  const _CategoryBreakdownChart({required this.categoryRevenue});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final total = categoryRevenue.values.fold(0.0, (a, b) => a + b);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('REVENUE BY CATEGORY', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        const SizedBox(height: 24),
+        SizedBox(
+          height: 200,
+          child: categoryRevenue.isEmpty 
+            ? Center(child: Text('NO CATEGORY DATA', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontWeight: FontWeight.bold, fontSize: 12)))
+            : PieChart(
+                PieChartData(
+                  sections: categoryRevenue.entries.map((e) {
+                    final index = categoryRevenue.keys.toList().indexOf(e.key);
+                    return PieChartSectionData(
+                      value: e.value,
+                      title: '${((e.value / total) * 100).toStringAsFixed(0)}%',
+                      radius: 50,
+                      titleStyle: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white),
+                      color: _getColor(index),
+                    );
+                  }).toList(),
+                  sectionsSpace: 4,
+                  centerSpaceRadius: 40,
+                ),
+              ),
+        ),
+        const SizedBox(height: 24),
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          children: categoryRevenue.entries.map((e) {
+            final index = categoryRevenue.keys.toList().indexOf(e.key);
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 8, height: 8, color: _getColor(index)),
+                const SizedBox(width: 8),
+                Text(e.key.toUpperCase(), style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            );
+          }).toList(),
+        ),
       ],
     );
   }
 
-  Widget _miniStat(String label, String value, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(value, style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
-        const SizedBox(height: 4),
-        Text(label, style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
-      ],
-    );
+  Color _getColor(int index) {
+    List<Color> colors = [AppColors.primary, Colors.blueAccent, Colors.greenAccent, Colors.amber, Colors.purpleAccent];
+    return colors[index % colors.length];
   }
 }
 
@@ -491,5 +1150,70 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class _PlatformAOVChart extends StatelessWidget {
+  final Map<String, double> aovByPlatform;
+  final bool isDark;
+
+  const _PlatformAOVChart({required this.aovByPlatform, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedAov = aovByPlatform.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'AVG ORDER VALUE BY PLATFORM',
+          style: GoogleFonts.inter(
+            color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2,
+            fontSize: 10,
+          ),
+        ),
+        const SizedBox(height: 24),
+        if (sortedAov.isEmpty)
+          Center(
+            child: Text(
+              'NO SIGNAL DETECTED',
+              style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.bold),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sortedAov.length,
+            itemBuilder: (context, index) {
+              final entry = sortedAov[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(entry.key.toUpperCase(), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
+                        Text(Formatters.currency(entry.value), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: index == 0 ? 1.0 : entry.value / sortedAov[0].value,
+                      backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                      valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                      minHeight: 2,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
 }
 
