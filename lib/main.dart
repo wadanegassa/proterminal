@@ -26,18 +26,18 @@ void main() async {
     debugPrint('Stripe initialization failed: $e');
   }
 
-  runApp(const ProviderScope(child: ProPayApp()));
+  runApp(const ProviderScope(child: ProTerminalApp()));
 }
 
-class ProPayApp extends ConsumerWidget {
-  const ProPayApp({super.key});
+class ProTerminalApp extends ConsumerWidget {
+  const ProTerminalApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     
     return MaterialApp(
-      title: 'ProPay',
+      title: 'ProTerminal',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
