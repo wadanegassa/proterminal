@@ -7,8 +7,9 @@ import '../domain/card_model.dart';
 import '../../../core/providers/service_providers.dart';
 
 import '../data/gateway_service.dart';
+import '../../product/presentation/product_provider.dart';
 
-// Stream of cards stored in Firebase (ProPay cards)
+// Stream of cards stored in Firebase (ProTerminal cards)
 final internalCardsProvider = StreamProvider<List<CardModel>>((ref) {
   final authAsync = ref.watch(authStateProvider);
   final user = authAsync.valueOrNull;
@@ -128,7 +129,7 @@ class WalletNotifier extends StateNotifier<WalletState> {
   Future<bool> transfer(String receiverId, double amount, {CardModel? source}) async {
     state = state.copyWith(isLoading: true, error: null, isSuccess: false);
     try {
-      if (source != null && source.platform != 'propay') {
+      if (source != null && source.platform != 'proterminal') {
         // Execute real external gateway transfer
         final ok = await _gatewayService.executeGatewayTransfer(
           source: source,
@@ -137,7 +138,7 @@ class WalletNotifier extends StateNotifier<WalletState> {
         );
         if (!ok) throw Exception('Gateway transfer failed');
       } else {
-        // Internal ProPay transfer
+        // Internal ProTerminal transfer
         await _service.transferFunds(receiverId, amount);
       }
       state = state.copyWith(isLoading: false, isSuccess: true);
@@ -172,30 +173,145 @@ class WalletNotifier extends StateNotifier<WalletState> {
 }
 final homeScreenIndexProvider = StateProvider<int>((ref) => 0);
 
-// Statistics calculator
-final walletStatisticsProvider = Provider<AsyncValue<Map<String, double>>>((ref) {
+// Comprehensive Business Intelligence Engine
+final businessAnalyticsProvider = Provider<AsyncValue<Map<String, dynamic>>>((ref) {
   final transactionsAsync = ref.watch(allTransactionsProvider);
-  final authAsync = ref.watch(authStateProvider);
-  final user = authAsync.valueOrNull;
-
+  
   return transactionsAsync.when(
     data: (transactions) {
-      double income = 0;
-      double expense = 0;
+      // 1. Core Revenue & Trends
+      final Map<String, int> transactionsByPlatform = {};
+      final Map<String, double> revenueByPlatform = {};
+      final Map<String, double> monthlyTrends = {};
+      double totalNet = 0;
+      double totalRefunds = 0;
+      final Set<String> activeRecipientIds = {};
+      final Map<String, int> userTransactionCount = {};
+      
+      final now = DateTime.now();
+      
       for (var tx in transactions) {
-        // If the current user is the sender, it's an expense.
-        // If not (e.g., from a gateway where receiverId is 'Merchant' or similar), it's income.
-        if (tx.senderId == user?.uid) {
-          expense += tx.amount;
+        if (tx.isIncome) {
+          final actualPlatform = tx.platform ?? 'Other';
+          // Map Stripe and Chapa to ProShop for e-commerce reporting
+          final displayPlatform = (actualPlatform == 'Stripe' || actualPlatform == 'Chapa') 
+              ? 'ProShop' 
+              : actualPlatform;
+          
+          final amount = tx.amount;
+          
+          revenueByPlatform[displayPlatform] = (revenueByPlatform[displayPlatform] ?? 0) + amount;
+          transactionsByPlatform[displayPlatform] = (transactionsByPlatform[displayPlatform] ?? 0) + 1;
+          totalNet += amount;
+          
+          userTransactionCount[tx.senderId] = (userTransactionCount[tx.senderId] ?? 0) + 1;
+
+          final txMonth = '${tx.timestamp.year}-${tx.timestamp.month.toString().padLeft(2, '0')}';
+          final monthsAgo = (now.year - tx.timestamp.year) * 12 + (now.month - tx.timestamp.month);
+          if (monthsAgo >= 0 && monthsAgo < 6) {
+            monthlyTrends[txMonth] = (monthlyTrends[txMonth] ?? 0) + amount;
+          }
+        } else if (tx.type == TransactionType.payment) {
+          totalRefunds += tx.amount;
+        }
+        
+        activeRecipientIds.add(tx.receiverId);
+      }
+      
+      // 2. Derive Retention & Churn
+      final totalUsers = userTransactionCount.length;
+      final retainedUsers = userTransactionCount.values.where((count) => count > 1).length;
+      final retentionRate = totalUsers > 0 ? retainedUsers / totalUsers : 0.0;
+      final churnRate = 1.0 - retentionRate;
+      final avgLTV = totalUsers > 0 ? totalNet / totalUsers : 0.0;
+
+      // 3. Regional Distribution (Dynamic based on platform)
+      final Map<String, double> regions = {
+        'North America': 0, 'East Africa': 0, 'Europe': 0, 'MENA': 0
+      };
+      for (var tx in transactions) {
+        if (!tx.isIncome) continue;
+        if (tx.platform == 'Stripe') {
+          regions['North America'] = (regions['North America'] ?? 0) + tx.amount;
+        } else if (tx.platform == 'Chapa') {
+          regions['East Africa'] = (regions['East Africa'] ?? 0) + tx.amount;
+        } else if (tx.platform == 'ProShop') {
+          regions['East Africa'] = (regions['East Africa'] ?? 0) + tx.amount;
         } else {
-          income += tx.amount;
+          regions['MENA'] = (regions['MENA'] ?? 0) + tx.amount;
         }
       }
+
+      // 4. Aggregate Real Balances from Gateways
+      final cardsAsync = ref.watch(userCardsProvider);
+      double totalManagedBalance = 0;
+      final Map<String, double> platformBalances = {};
+      
+      cardsAsync.whenData((cards) {
+        for (var card in cards) {
+          totalManagedBalance += card.balance;
+          platformBalances[card.platform.toUpperCase()] = (platformBalances[card.platform.toUpperCase()] ?? 0) + card.balance;
+        }
+      });
+
+      final productsAsync = ref.watch(productsProvider);
+      final Map<String, double> productRevenue = {};
+      final Map<String, double> categoryRevenue = {};
+      
+      productsAsync.whenData((products) {
+        final productMap = {for (var p in products) p.id: p};
+        for (var tx in transactions) {
+          if (!tx.isIncome || tx.productId == null) continue;
+          final product = productMap[tx.productId];
+          if (product != null) {
+            // Group key including platform for distinct tracking
+            final platformKey = '${product.platform}: ${product.name}';
+            productRevenue[platformKey] = (productRevenue[platformKey] ?? 0) + tx.amount;
+            categoryRevenue[product.category] = (categoryRevenue[product.category] ?? 0) + tx.amount;
+          }
+        }
+      });
+
+      // 5. Advanced Metrics
+      final txVelocity = transactions.length / 24; 
+      final activeTerminals = activeRecipientIds.length;
+
+      final Map<String, double> aovByPlatform = {};
+      transactionsByPlatform.forEach((platform, count) {
+        aovByPlatform[platform] = count > 0 ? revenueByPlatform[platform]! / count : 0.0;
+      });
+
       return AsyncValue.data({
-        'income': income,
-        'expense': expense,
+        'revenueByPlatform': revenueByPlatform,
+        'aovByPlatform': aovByPlatform,
+        'monthlyTrends': monthlyTrends,
+        'totalNet': totalNet,
+        'totalRefunds': totalRefunds,
+        'avgLTV': avgLTV,
+        'churnRate': churnRate,
+        'regionalDistribution': regions,
+        'retentionRate': retentionRate,
+        'totalManagedBalance': totalManagedBalance,
+        'platformBalances': platformBalances,
+        'transactionVelocity': txVelocity,
+        'activeTerminals': activeTerminals,
+        'productRevenue': productRevenue,
+        'categoryRevenue': categoryRevenue,
       });
     },
+    loading: () => const AsyncValue.loading(),
+    error: (e, s) => AsyncValue.error(e, s),
+  );
+});
+
+// Deprecated: walletStatisticsProvider (replaced by businessAnalyticsProvider)
+final walletStatisticsProvider = Provider<AsyncValue<Map<String, double>>>((ref) {
+  final analytics = ref.watch(businessAnalyticsProvider);
+  return analytics.when(
+    data: (data) => AsyncValue.data({
+      'income': data['totalNet'] as double,
+      'expense': 0.0, // Expenses handled differently in Admin view
+    }),
     loading: () => const AsyncValue.loading(),
     error: (e, s) => AsyncValue.error(e, s),
   );

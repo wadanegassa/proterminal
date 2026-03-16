@@ -128,6 +128,8 @@ class GatewayService {
               timestamp: DateTime.fromMillisecondsSinceEpoch(item['created'] * 1000),
               type: TransactionType.transfer,
               status: TransactionStatus.completed,
+              platform: 'Stripe',
+              isRevenue: true,
               note: 'Stripe: ${item['description'] ?? "No description"}',
             ));
           }
@@ -154,6 +156,8 @@ class GatewayService {
                 timestamp: DateTime.parse(item['created_at'] ?? DateTime.now().toIso8601String()),
                 type: TransactionType.transfer,
                 status: TransactionStatus.completed,
+                platform: 'Chapa',
+                isRevenue: true,
                 note: 'Chapa: ${item['reason'] ?? "Payment"}',
               ));
             }

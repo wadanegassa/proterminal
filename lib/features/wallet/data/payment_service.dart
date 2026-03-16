@@ -73,9 +73,9 @@ class PaymentService {
           'last_name': lastName,
           'tx_ref': txRef,
           'callback_url': PaymentConfig.chapaWebhookUrl,
-          'return_url': 'propay://payment-complete',
+          'return_url': 'proterminal://payment-complete',
           'customization[title]': 'Wallet Top-up',
-          'customization[description]': 'Deposit to ProPay Wallet',
+          'customization[description]': 'Deposit to ProTerminal Wallet',
         }),
       );
 
