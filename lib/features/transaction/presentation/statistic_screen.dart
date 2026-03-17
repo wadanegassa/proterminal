@@ -5,6 +5,7 @@ import 'package:propay/core/config/constants.dart';
 import 'package:propay/core/utils/formatters.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:propay/features/wallet/presentation/wallet_provider.dart';
+import 'package:propay/features/wallet/presentation/currency_provider.dart';
 
 class StatisticScreen extends ConsumerStatefulWidget {
   const StatisticScreen({super.key});
@@ -76,18 +77,19 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
   Widget _buildMainAnalytics(BuildContext context) {
     final analyticsAsync = ref.watch(businessAnalyticsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     return analyticsAsync.when(
       data: (analytics) {
-        final totalNet = analytics['totalNet'] as double;
-        final revenueByPlatform = analytics['revenueByPlatform'] as Map<String, double>;
-        final monthlyTrends = analytics['monthlyTrends'] as Map<String, double>;
-        final regionalDistribution = analytics['regionalDistribution'] as Map<String, double>;
-        final avgLTV = analytics['avgLTV'] as double;
-        final churnRate = analytics['churnRate'] as double;
-        final retentionRate = analytics['retentionRate'] as double;
-        final velocity = analytics['transactionVelocity'] as double;
-        final terminals = analytics['activeTerminals'] as int;
+        final totalNet = (analytics['totalNet'] as num?)?.toDouble() ?? 0.0;
+        final revenueByPlatform = analytics['revenueByPlatform'] as Map<String, double>? ?? {};
+        final monthlyTrends = analytics['monthlyTrends'] as Map<String, double>? ?? {};
+        final regionalDistribution = analytics['regionalDistribution'] as Map<String, double>? ?? {};
+        final avgLTV = (analytics['avgLTV'] as num?)?.toDouble() ?? 0.0;
+        final growthRate = (analytics['growthRate'] as num?)?.toDouble() ?? 0.0;
+        final retentionRate = (analytics['retentionRate'] as num?)?.toDouble() ?? 0.0;
+        final velocity = (analytics['transactionVelocity'] as num?)?.toDouble() ?? 0.0;
+        final terminals = (analytics['activeTerminals'] as num?)?.toInt() ?? 0;
         final productRevenue = analytics['productRevenue'] as Map<String, double>? ?? {};
         final categoryRevenue = analytics['categoryRevenue'] as Map<String, double>? ?? {};
 
@@ -118,7 +120,7 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        Formatters.currency(totalNet),
+                        Formatters.currency(totalNet, symbol: CurrencyConverter.getSymbol(prefCurrency)),
                         style: GoogleFonts.inter(
                           color: isDark ? Colors.white : Colors.black,
                           fontSize: 32,
@@ -139,15 +141,15 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
                 ],
               ),
               const SizedBox(height: 20),
-              _VelocityChart(velocity: velocity, isDark: isDark),
+              _VelocityChart(velocity: velocity, spots: analytics['velocitySpots'] as List<FlSpot>?, isDark: isDark),
               
               const SizedBox(height: 40),
               
               Row(
                 children: [
-                  Expanded(child: _StatisticCard(label: 'GROSS', value: totalNet, color: Colors.greenAccent)),
+                  Expanded(child: _StatisticCard(label: 'GROSS', value: totalNet, color: Colors.greenAccent, symbol: CurrencyConverter.getSymbol(prefCurrency))),
                   const SizedBox(width: 16),
-                  Expanded(child: _StatisticCard(label: 'REFUNDS', value: analytics['totalRefunds'] as double? ?? 0.0, color: AppColors.primary)),
+                  Expanded(child: _StatisticCard(label: 'REFUNDS', value: (analytics['totalRefunds'] as num?)?.toDouble() ?? 0.0, color: AppColors.primary, symbol: CurrencyConverter.getSymbol(prefCurrency))),
                 ],
               ),
               const SizedBox(height: 40),
@@ -157,14 +159,14 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
               const SizedBox(height: 40),
                _MonthlyBarChart(data: monthlyTrends),
               const SizedBox(height: 40),
-              _RegionalDistributionChart(data: regionalDistribution),
+              _RegionalDistributionChart(data: regionalDistribution, totalNet: totalNet),
               const SizedBox(height: 40),
               _RetentionHealthGauge(retention: retentionRate),
               
               const SizedBox(height: 48),
-              _QuickStatsGrid(ltv: avgLTV, churn: churnRate),
+              _QuickStatsGrid(ltv: avgLTV, growth: growthRate),
               const SizedBox(height: 40),
-              const _ActivityHeatmap(),
+              _ActivityHeatmap(density: analytics['activityDensity'] as List<List<int>>?),
               const SizedBox(height: 48),
               _ProductPerformance(productRevenue: productRevenue),
               const SizedBox(height: 48),
@@ -179,7 +181,48 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
         );
       },
       loading: () => const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primary))),
-      error: (e, s) => Center(child: Text('Error: $e', style: TextStyle(color: isDark ? Colors.white : Colors.black))),
+      error: (e, s) => _buildErrorState(context, e.toString(), isDark),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, String error, bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              error.contains('Optimizing') || error.contains('indexes') 
+                ? Icons.auto_awesome_rounded 
+                : Icons.error_outline_rounded,
+              color: AppColors.primary,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              error.contains('Optimizing') || error.contains('indexes')
+                ? 'OPTIMIZING FINANCIAL DATA'
+                : 'SIGNAL INTERRUPTED',
+              style: GoogleFonts.inter(
+                color: isDark ? Colors.white : Colors.black,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -187,86 +230,108 @@ class _StatisticScreenState extends ConsumerState<StatisticScreen> with SingleTi
     final transactionsAsync = ref.watch(allTransactionsProvider);
     final user = ref.watch(userModelProvider).valueOrNull;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     return transactionsAsync.when(
-      data: (transactions) => ListView.builder(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 100),
-        itemCount: transactions.length,
-        itemBuilder: (context, index) {
-          final tx = transactions[index];
-          final isSent = tx.senderId == user?.uid;
-          
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
-              borderRadius: BorderRadius.circular(4),
+      data: (transactions) {
+        if (transactions.isEmpty) {
+          return Center(
+            child: Text(
+              'NO TRANSACTIONS DETECTED',
+              style: GoogleFonts.inter(
+                color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
+              ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 4,
-                  height: 40,
-                  color: !isSent ? Colors.greenAccent : AppColors.primary,
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isSent ? 'REFUND ISSUED' : (tx.platform == 'Stripe' || tx.platform == 'Chapa' ? 'PROSHOP SIGNAL' : 'REVENUE SIGNAL'),
-                        style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isSent ? (tx.receiverName ?? 'System') : (tx.senderName ?? (tx.platform ?? 'External Customer')),
-                        style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ],
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 100),
+          itemCount: transactions.length,
+          itemBuilder: (context, index) {
+            final tx = transactions[index];
+            final isSent = tx.senderId == user?.uid;
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                border: Border.all(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 40,
+                    color: !isSent ? Colors.greenAccent : AppColors.primary,
                   ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      Formatters.date(tx.timestamp),
-                      style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (tx.platform != null)
-                          Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                            child: Text(tx.platform!.toUpperCase(), style: GoogleFonts.inter(color: AppColors.primary, fontSize: 8, fontWeight: FontWeight.w900)),
-                          ),
                         Text(
-                          '${isSent ? "-" : "+"}${Formatters.currency(tx.amount)}',
-                          style: GoogleFonts.inter(
-                            color: !isSent ? Colors.greenAccent : AppColors.primary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                          ),
+                          isSent ? 'REFUND ISSUED' : (tx.platform == 'Stripe' || tx.platform == 'Chapa' ? 'PROSHOP SIGNAL' : 'REVENUE SIGNAL'),
+                          style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isSent ? (tx.receiverName ?? 'System') : (tx.senderName ?? (tx.platform ?? 'External Customer')),
+                          style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, s) => Center(child: Text('Error: $e', style: TextStyle(color: isDark ? Colors.white : Colors.black))),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        Formatters.date(tx.timestamp),
+                        style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (tx.platform != null)
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                              child: Text(tx.platform!.toUpperCase(), style: GoogleFonts.inter(color: AppColors.primary, fontSize: 8, fontWeight: FontWeight.w900)),
+                            ),
+                          Text(
+                            '${isSent ? "-" : "+"}${Formatters.currency(
+                              CurrencyConverter.convert(
+                                amount: tx.amount, 
+                                from: tx.platform?.toLowerCase() == "chapa" ? "ETB" : "USD", 
+                                to: prefCurrency
+                              ), 
+                              symbol: CurrencyConverter.getSymbol(prefCurrency)
+                            )}',
+                            style: GoogleFonts.inter(
+                              color: !isSent ? Colors.greenAccent : AppColors.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(AppColors.primary))),
+      error: (e, s) => _buildErrorState(context, e.toString(), isDark),
     );
   }
 }
@@ -275,7 +340,8 @@ class _StatisticCard extends StatelessWidget {
   final String label;
   final double value;
   final Color color;
-  const _StatisticCard({required this.label, required this.value, required this.color});
+  final String? symbol;
+  const _StatisticCard({required this.label, required this.value, required this.color, this.symbol});
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +358,7 @@ class _StatisticCard extends StatelessWidget {
           Text(label, style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 12),
           Text(
-            Formatters.currency(value),
+            Formatters.currency(value, symbol: symbol),
             style: GoogleFonts.inter(color: color, fontSize: 18, fontWeight: FontWeight.w900),
           ),
         ],
@@ -347,7 +413,11 @@ class _CashflowGraphState extends ConsumerState<_CashflowGraph> {
                 final txDate = tx.timestamp;
                 final daysAgo = now.difference(txDate).inDays;
                 if (daysAgo >= 0 && daysAgo <= 6) {
-                  final amount = tx.amount;
+                  final amount = CurrencyConverter.convert(
+                    amount: tx.amount,
+                    from: tx.platform?.toLowerCase() == 'chapa' ? 'ETB' : 'USD',
+                    to: ref.watch(displayCurrencyProvider),
+                  );
                   if (tx.isIncome) {
                     dailyBalances[daysAgo] = (dailyBalances[daysAgo] ?? 0) + amount;
                   } else {
@@ -413,7 +483,7 @@ class _CashflowGraphState extends ConsumerState<_CashflowGraph> {
                         interval: ((maxY - minY) / 3) == 0 ? 1 : (maxY - minY) / 3,
                         reservedSize: 42,
                         getTitlesWidget: (value, meta) {
-                          return Text(Formatters.compactCurrency(value), 
+                          return Text(Formatters.compactCurrency(value, symbol: CurrencyConverter.getSymbol(ref.watch(displayCurrencyProvider))), 
                               style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontWeight: FontWeight.w800, fontSize: 10), 
                               textAlign: TextAlign.right);
                         },
@@ -475,7 +545,10 @@ class _CashflowGraphState extends ConsumerState<_CashflowGraph> {
                             fontWeight: FontWeight.w900,
                             fontSize: 12,
                           );
-                          return LineTooltipItem(Formatters.currency(touchedSpot.y), textStyle);
+                          return LineTooltipItem(
+                            Formatters.currency(touchedSpot.y, symbol: CurrencyConverter.getSymbol(ref.watch(displayCurrencyProvider))), 
+                            textStyle
+                          );
                         }).toList();
                       },
                     ),
@@ -666,15 +739,28 @@ class _MonthlyBarChart extends StatelessWidget {
 }
 
 class _ActivityHeatmap extends StatelessWidget {
-  const _ActivityHeatmap();
+  final List<List<int>>? density;
+  const _ActivityHeatmap({this.density});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Fallback to empty grid if no data
+    final data = density ?? List.generate(7, (_) => List.filled(24, 0));
+    
+    // Find max intensity for scaling colors
+    int maxIntensity = 1;
+    for (var row in data) {
+      for (var val in row) {
+        if (val > maxIntensity) maxIntensity = val;
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('YEARLY SIGNAL INTENSITY', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        Text('REAL-TIME SIGNAL INTENSITY (30 DAYS)', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
@@ -689,16 +775,21 @@ class _ActivityHeatmap extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: List.generate(7, (row) => Row(
                 children: List.generate(24, (col) {
-                  final intensity = (row + col) % 5;
-                  return Container(
-                    width: 10,
-                    height: 10,
-                    margin: const EdgeInsets.all(1),
-                    decoration: BoxDecoration(
-                      color: intensity == 0 
-                          ? (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))
-                          : AppColors.primary.withValues(alpha: 0.2 * intensity),
-                      borderRadius: BorderRadius.circular(1),
+                  final intensity = data[row][col];
+                  final opacity = intensity == 0 ? 0.05 : (0.2 + (intensity / maxIntensity) * 0.8).clamp(0.2, 1.0);
+                  
+                  return Tooltip(
+                    message: 'Stat ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][row]} $col:00 - $intensity signals',
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      margin: const EdgeInsets.all(1),
+                      decoration: BoxDecoration(
+                        color: intensity == 0 
+                            ? (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))
+                            : AppColors.primary.withValues(alpha: opacity),
+                        borderRadius: BorderRadius.circular(1),
+                      ),
                     ),
                   );
                 }),
@@ -770,8 +861,8 @@ class _ExportButton extends ConsumerWidget {
 
 class _QuickStatsGrid extends ConsumerWidget {
   final double ltv;
-  final double churn;
-  const _QuickStatsGrid({required this.ltv, required this. churn});
+  final double growth;
+  const _QuickStatsGrid({required this.ltv, required this.growth});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -780,35 +871,36 @@ class _QuickStatsGrid extends ConsumerWidget {
 
     return analyticsAsync.when(
       data: (analytics) {
-        final retention = analytics['retentionRate'] as double? ?? 0.0;
+        final retention = (analytics['retentionRate'] as num?)?.toDouble() ?? 0.0;
         final orders = ref.watch(allTransactionsProvider).valueOrNull?.length ?? 0;
-        final signals = analytics['transactionVelocity'] as double? ?? 0.0;
-        final terminals = analytics['activeTerminals'] as int? ?? 0;
-        final net = analytics['totalNet'] as double? ?? 0.0;
+        final signals = (analytics['transactionVelocity'] as num?)?.toDouble() ?? 0.0;
+        final terminals = (analytics['activeTerminals'] as num?)?.toInt() ?? 0;
+        final net = (analytics['totalNet'] as num?)?.toDouble() ?? 0.0;
 
-        return Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _miniStat('RETENTION', '${(retention * 100).toStringAsFixed(1)}%', isDark, isPositive: retention > 0.5),
-                _miniStat('CHURN', '${(churn * 100).toStringAsFixed(1)}%', isDark, isPositive: churn < 0.2),
-                _miniStat('AVG LTV', Formatters.compactCurrency(ltv), isDark, isPositive: ltv > 50),
-                _miniStat('CAC', 'N/A', isDark),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _miniStat('ORDERS', orders.toString(), isDark),
-                _miniStat('Terminals', terminals.toString(), isDark, isPositive: terminals > 0),
-                _miniStat('Signals/hr', signals.toStringAsFixed(1), isDark),
-                _miniStat('Net Volume', Formatters.compactCurrency(net), isDark, isPositive: net > 0),
-              ],
-            ),
-          ],
-        );
+                final prefCurrency = ref.watch(displayCurrencyProvider);
+                return Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _miniStat('RETENTION', '${(retention * 100).toStringAsFixed(1)}%', isDark, isPositive: retention > 0.5),
+                        _miniStat('GROWTH', '${(growth * 100).toStringAsFixed(1)}%', isDark, isPositive: growth > 0),
+                        _miniStat('AVG LTV', Formatters.compactCurrency(ltv, symbol: CurrencyConverter.getSymbol(prefCurrency)), isDark, isPositive: ltv > 50),
+                        _miniStat('CAC', 'N/A', isDark),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _miniStat('ORDERS', orders.toString(), isDark),
+                        _miniStat('Terminals', terminals.toString(), isDark, isPositive: terminals > 0),
+                        _miniStat('Signals/hr', signals.toStringAsFixed(1), isDark),
+                        _miniStat('Net Volume', Formatters.compactCurrency(net, symbol: CurrencyConverter.getSymbol(prefCurrency)), isDark, isPositive: net > 0),
+                      ],
+                    ),
+                  ],
+                );
       },
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
@@ -832,13 +924,15 @@ class _QuickStatsGrid extends ConsumerWidget {
   }
 }
 
-class _RegionalDistributionChart extends StatelessWidget {
+class _RegionalDistributionChart extends ConsumerWidget {
   final Map<String, double> data;
-  const _RegionalDistributionChart({required this.data});
+  final double totalNet;
+  const _RegionalDistributionChart({required this.data, required this.totalNet});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
     final sortedByRevenue = data.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final maxRevenue = sortedByRevenue.isEmpty ? 1.0 : sortedByRevenue.first.value;
 
@@ -854,31 +948,36 @@ class _RegionalDistributionChart extends StatelessWidget {
         children: [
           Text('REGIONAL REVENUE FLOW', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 32),
-          ...sortedByRevenue.take(4).map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(e.key.toUpperCase(), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
-                    Text(Formatters.compactCurrency(e.value), style: GoogleFonts.inter(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w900)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Stack(
-                  children: [
-                    Container(height: 4, width: double.infinity, decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(2))),
-                    FractionallySizedBox(
-                      widthFactor: (e.value / maxRevenue).clamp(0.01, 1.0),
-                      child: Container(height: 4, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2))),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          )),
+          ...sortedByRevenue.take(4).map((e) {
+            final percent = totalNet > 0 ? (e.value / totalNet) * 100 : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('${e.key.toUpperCase()} (${percent.toStringAsFixed(0)}%)', 
+                        style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
+                      Text(Formatters.compactCurrency(e.value, symbol: CurrencyConverter.getSymbol(prefCurrency)), 
+                        style: GoogleFonts.inter(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Stack(
+                    children: [
+                      Container(height: 4, width: double.infinity, decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(2))),
+                      FractionallySizedBox(
+                        widthFactor: (e.value / maxRevenue).clamp(0.01, 1.0),
+                        child: Container(height: 4, decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2))),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -934,7 +1033,9 @@ class _RetentionHealthGauge extends StatelessWidget {
               children: [
                 Text('RETENTION HEALTH', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
                 const SizedBox(height: 8),
-                Text('Excellent stability. 82% of users active across platforms.', 
+                Text(retention > 0.7 
+                  ? 'Excellent stability. ${(retention * 100).toStringAsFixed(0)}% of users active across platforms.'
+                  : 'Growth opportunity. ${(retention * 100).toStringAsFixed(0)}% retention rate detected.', 
                   style: GoogleFonts.inter(color: isDark ? Colors.white70 : Colors.black87, fontSize: 11, fontWeight: FontWeight.bold, height: 1.5)),
               ],
             ),
@@ -970,13 +1071,14 @@ class _TerminalHealthRow extends StatelessWidget {
   }
 }
 
-class _VelocityChart extends StatelessWidget {
+class _VelocityChart extends ConsumerWidget {
   final double velocity;
+  final List<FlSpot>? spots;
   final bool isDark;
-  const _VelocityChart({required this.velocity, required this.isDark});
+  const _VelocityChart({required this.velocity, this.spots, required this.isDark});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -1006,7 +1108,9 @@ class _VelocityChart extends StatelessWidget {
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: List.generate(10, (i) => FlSpot(i.toDouble(), 10 + (i % 3) * 5.0)),
+                    spots: (spots == null || spots!.isEmpty) 
+                        ? [const FlSpot(0, 0), const FlSpot(10, 0)]
+                        : spots!,
                     isCurved: true,
                     color: Colors.greenAccent,
                     barWidth: 2,
@@ -1023,13 +1127,14 @@ class _VelocityChart extends StatelessWidget {
   }
 }
 
-class _ProductPerformance extends StatelessWidget {
+class _ProductPerformance extends ConsumerWidget {
   final Map<String, double> productRevenue;
   const _ProductPerformance({required this.productRevenue});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
     final sortedProducts = productRevenue.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final displayProducts = sortedProducts.take(5).toList();
 
@@ -1057,7 +1162,7 @@ class _ProductPerformance extends StatelessWidget {
                       Expanded(
                         child: Text(e.key.toUpperCase(), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5)),
                       ),
-                      Text(Formatters.currency(e.value), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
+                      Text(Formatters.currency(e.value, symbol: CurrencyConverter.getSymbol(prefCurrency)), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 14)),
                     ],
                   ),
                 )).toList(),
@@ -1152,14 +1257,15 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
 
-class _PlatformAOVChart extends StatelessWidget {
+class _PlatformAOVChart extends ConsumerWidget {
   final Map<String, double> aovByPlatform;
   final bool isDark;
 
   const _PlatformAOVChart({required this.aovByPlatform, required this.isDark});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefCurrency = ref.watch(displayCurrencyProvider);
     final sortedAov = aovByPlatform.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
     return Column(
@@ -1197,7 +1303,7 @@ class _PlatformAOVChart extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(entry.key.toUpperCase(), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
-                        Text(Formatters.currency(entry.value), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.primary)),
+                        Text(Formatters.currency(entry.value, symbol: CurrencyConverter.getSymbol(prefCurrency)), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.primary)),
                       ],
                     ),
                     const SizedBox(height: 8),
