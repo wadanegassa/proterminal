@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/config/constants.dart';
 import '../../wallet/presentation/wallet_provider.dart';
 import '../../../core/utils/formatters.dart';
+import '../../wallet/presentation/currency_provider.dart';
 
 class ReceiveQRScreen extends ConsumerWidget {
   const ReceiveQRScreen({super.key});
@@ -19,7 +20,7 @@ class ReceiveQRScreen extends ConsumerWidget {
       if (next.valueOrNull != null && previous?.valueOrNull != null) {
         if (next.value!.length > previous!.value!.length) {
           final latestTx = next.value!.first;
-          _showPaymentSuccess(context, latestTx.amount, latestTx.senderName ?? 'Customer', isDark);
+          _showPaymentSuccess(context, ref, latestTx.amount, latestTx.senderName ?? 'Customer', isDark);
         }
       }
     });
@@ -132,7 +133,7 @@ class ReceiveQRScreen extends ConsumerWidget {
     );
   }
 
-  void _showPaymentSuccess(BuildContext context, double amount, String sender, bool isDark) {
+  void _showPaymentSuccess(BuildContext context, WidgetRef ref, double amount, String sender, bool isDark) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -161,7 +162,10 @@ class ReceiveQRScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                '${Formatters.currency(amount)} from $sender',
+                '${Formatters.currency(
+                  amount, // Assuming POS amount is already in preferred notation or handled at arrival
+                  symbol: CurrencyConverter.getSymbol(ref.read(displayCurrencyProvider)),
+                )} from $sender',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
                   color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
