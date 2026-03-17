@@ -5,6 +5,7 @@ import '../../../core/config/constants.dart';
 import '../../wallet/presentation/wallet_provider.dart';
 import '../../auth/presentation/auth_provider.dart';
 import '../../../core/utils/formatters.dart';
+import '../../wallet/presentation/currency_provider.dart';
 import '../../../core/widgets/cards.dart';
 
 class MerchantDashboard extends ConsumerWidget {
@@ -16,6 +17,7 @@ class MerchantDashboard extends ConsumerWidget {
     final txAsync = ref.watch(allTransactionsProvider);
     final currentUid = ref.watch(authStateProvider).valueOrNull?.uid ?? '';
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -42,7 +44,14 @@ class MerchantDashboard extends ConsumerWidget {
               children: [
                 // Premium Earnings Card
                 PremiumWalletCard(
-                  balance: Formatters.currency(user.walletBalance),
+                  balance: Formatters.currency(
+                    CurrencyConverter.convert(
+                      amount: user.walletBalance,
+                      from: 'USD',
+                      to: prefCurrency,
+                    ),
+                    symbol: CurrencyConverter.getSymbol(prefCurrency),
+                  ),
                   cardNum: "MERCHANT: ${currentUid.substring(0, 10).toUpperCase()}",
                   expDate: "ACTIVE",
                   holderName: user.businessName.toUpperCase(),
@@ -53,7 +62,11 @@ class MerchantDashboard extends ConsumerWidget {
                 txAsync.when(
                   data: (txList) {
                     final sales = txList.where((tx) => tx.receiverId == currentUid).toList();
-                    final grossVolume = sales.fold(0.0, (sum, tx) => sum + tx.amount);
+                    final grossVolume = sales.fold(0.0, (sum, tx) => sum + CurrencyConverter.convert(
+                      amount: tx.amount,
+                      from: tx.platform?.toLowerCase() == 'chapa' ? 'ETB' : 'USD',
+                      to: prefCurrency,
+                    ));
                     
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,7 +76,7 @@ class MerchantDashboard extends ConsumerWidget {
                             Expanded(
                               child: _DashboardMiniStat(
                                 label: 'Gross Volume',
-                                value: Formatters.currency(grossVolume),
+                                value: Formatters.currency(grossVolume, symbol: CurrencyConverter.getSymbol(prefCurrency)),
                                 icon: Icons.payments_rounded,
                                 isDark: isDark,
                               ),
@@ -151,6 +164,7 @@ class MerchantDashboard extends ConsumerWidget {
                                 subtitle: Formatters.relativeTime(tx.timestamp),
                                 amount: tx.amount,
                                 isSent: false,
+                                platform: tx.platform,
                               );
                             },
                           ),
