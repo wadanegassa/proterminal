@@ -1,16 +1,16 @@
 import 'package:intl/intl.dart';
 
 class Formatters {
-  static String currency(double amount) {
+  static String currency(double amount, {String? symbol}) {
     return NumberFormat.currency(
-      symbol: '\$',
+      symbol: symbol ?? '\$',
       decimalDigits: 2,
     ).format(amount);
   }
 
-  static String compactCurrency(double amount) {
+  static String compactCurrency(double amount, {String? symbol}) {
     return NumberFormat.compactCurrency(
-      symbol: '\$',
+      symbol: symbol ?? '\$',
       decimalDigits: 0,
     ).format(amount);
   }
