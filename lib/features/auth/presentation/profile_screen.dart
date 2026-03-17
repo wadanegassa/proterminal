@@ -9,6 +9,7 @@ import '../../wallet/presentation/wallet_provider.dart';
 import '../domain/user_model.dart';
 import '../../merchant/presentation/merchant_dashboard.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../wallet/presentation/currency_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -19,6 +20,7 @@ class ProfileScreen extends ConsumerWidget {
     final userAsync = ref.watch(userModelProvider);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -97,7 +99,14 @@ class ProfileScreen extends ConsumerWidget {
                           child: _ProfileStat(
                             icon: Icons.account_balance_wallet_rounded,
                             label: 'LIQUIDITY',
-                            value: Formatters.currency(user.walletBalance),
+                            value: Formatters.currency(
+                              CurrencyConverter.convert(
+                                amount: user.walletBalance,
+                                from: 'USD',
+                                to: prefCurrency,
+                              ),
+                              symbol: CurrencyConverter.getSymbol(prefCurrency),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
