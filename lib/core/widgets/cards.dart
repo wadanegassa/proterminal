@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../config/constants.dart';
 import '../utils/formatters.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../features/wallet/presentation/currency_provider.dart';
 import 'package:flutter/services.dart';
 
 // ─── Adaptive Stark Container ─────────────────────────────────────────
@@ -329,13 +331,14 @@ class QuickActionBtn extends StatelessWidget {
 }
 
 // ─── Adaptive Transaction Tile (Stark) ──────────────────────────────────────────────
-class TransactionTile extends StatelessWidget {
+class TransactionTile extends ConsumerWidget {
   final String name;
   final String subtitle;
   final double amount;
   final bool isSent;
   final String? initials;
   final IconData? icon;
+  final String? platform;
 
   const TransactionTile({
     super.key,
@@ -345,11 +348,20 @@ class TransactionTile extends StatelessWidget {
     required this.isSent,
     this.initials,
     this.icon,
+    this.platform,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
+    
+    final convertedAmount = CurrencyConverter.convert(
+      amount: amount,
+      from: platform?.toLowerCase() == 'chapa' ? 'ETB' : 'USD',
+      to: prefCurrency,
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -408,7 +420,7 @@ class TransactionTile extends StatelessWidget {
             ),
           ),
           Text(
-            '${isSent ? '-' : '+'}${Formatters.currency(amount)}',
+            '${isSent ? '-' : '+'}${Formatters.currency(convertedAmount, symbol: CurrencyConverter.getSymbol(prefCurrency))}',
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w900,
               fontSize: 15,
