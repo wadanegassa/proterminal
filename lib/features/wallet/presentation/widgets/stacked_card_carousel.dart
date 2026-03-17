@@ -4,8 +4,10 @@ import 'package:propay/core/config/constants.dart';
 import 'package:propay/core/widgets/cards.dart';
 import 'package:propay/features/wallet/domain/card_model.dart';
 import 'package:propay/core/utils/formatters.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:propay/features/wallet/presentation/currency_provider.dart';
 
-class StackedCardCarousel extends StatefulWidget {
+class StackedCardCarousel extends ConsumerStatefulWidget {
   final List<CardModel> cards;
   final Function(CardModel) onCardChanged;
 
@@ -16,10 +18,10 @@ class StackedCardCarousel extends StatefulWidget {
   });
 
   @override
-  State<StackedCardCarousel> createState() => _StackedCardCarouselState();
+  ConsumerState<StackedCardCarousel> createState() => _StackedCardCarouselState();
 }
 
-class _StackedCardCarouselState extends State<StackedCardCarousel> with SingleTickerProviderStateMixin {
+class _StackedCardCarouselState extends ConsumerState<StackedCardCarousel> with SingleTickerProviderStateMixin {
   late List<CardModel> _cards;
   double _dragDy = 0.0;
   late AnimationController _animCtrl;
@@ -178,10 +180,18 @@ class _StackedCardCarouselState extends State<StackedCardCarousel> with SingleTi
     final List<Widget> items = [];
     final int count = _cards.length > 3 ? 3 : _cards.length;
 
+    final prefCurrency = ref.watch(displayCurrencyProvider);
+
     for (int i = count - 1; i >= 0; i--) {
       final card = _cards[i];
       final bool isTop = i == 0;
       
+      final convertedBalance = CurrencyConverter.convert(
+        amount: card.balance,
+        from: card.currency,
+        to: prefCurrency,
+      );
+
       items.add(
         Positioned(
           top: isTop ? _dragDy.clamp(-200.0, 0.0) : (i * -16.0),
@@ -192,7 +202,7 @@ class _StackedCardCarouselState extends State<StackedCardCarousel> with SingleTi
             child: Transform.scale(
               scale: (1.0 - (i * 0.05)).clamp(0.85, 1.0),
               child: PremiumWalletCard(
-                balance: Formatters.currency(card.balance),
+                balance: Formatters.currency(convertedBalance, symbol: CurrencyConverter.getSymbol(prefCurrency)),
                 cardNum: card.cardNumber,
                 expDate: card.expiryDate,
                 holderName: card.cardHolder,
