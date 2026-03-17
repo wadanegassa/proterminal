@@ -5,6 +5,7 @@ import 'package:propay/core/config/constants.dart';
 import 'package:propay/core/widgets/cards.dart';
 import 'package:propay/core/utils/formatters.dart';
 import 'package:propay/features/wallet/presentation/wallet_provider.dart';
+import 'package:propay/features/wallet/presentation/currency_provider.dart';
 
 class AllCardsScreen extends ConsumerWidget {
   const AllCardsScreen({super.key});
@@ -12,6 +13,7 @@ class AllCardsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cardsAsync = ref.watch(userCardsProvider);
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -51,7 +53,14 @@ class AllCardsScreen extends ConsumerWidget {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 24),
                     child: PremiumWalletCard(
-                      balance: Formatters.currency(card.balance),
+                      balance: Formatters.currency(
+                        CurrencyConverter.convert(
+                          amount: card.balance,
+                          from: card.currency,
+                          to: prefCurrency,
+                        ),
+                        symbol: CurrencyConverter.getSymbol(prefCurrency),
+                      ),
                       cardNum: card.cardNumber,
                       expDate: card.expiryDate,
                       holderName: card.cardHolder,
