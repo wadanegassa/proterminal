@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:propay/core/config/constants.dart';
 import 'package:propay/features/wallet/presentation/wallet_provider.dart';
 import 'package:propay/core/widgets/cards.dart';
+import 'package:propay/features/wallet/presentation/currency_provider.dart';
 import 'package:propay/core/utils/formatters.dart';
 import 'package:propay/features/transaction/presentation/statistic_screen.dart';
 import 'package:propay/features/qr_payment/presentation/receive_qr_screen.dart';
@@ -37,6 +38,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final currentIndex = ref.watch(homeScreenIndexProvider);
     final user = ref.watch(userModelProvider).valueOrNull;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     return Scaffold(
       key: _scaffoldKey,
@@ -51,17 +53,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _HeaderAction(icon: Icons.sort_rounded, isDark: isDark, onTap: () => _scaffoldKey.currentState?.openDrawer()),
-                Stack(
+                Row(
                   children: [
-                    _HeaderAction(icon: Icons.notifications_none_rounded, isDark: isDark, onTap: () => _showNotifications(context, isDark)),
-                    Positioned(
-                      right: 12,
-                      top: 12,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, border: Border.all(color: isDark ? AppColors.darkSurface : Colors.white, width: 1.5)),
-                      ),
+                    Consumer(builder: (context, ref, _) {
+                      final pref = ref.watch(displayCurrencyProvider);
+                      return GestureDetector(
+                        onTap: () => ref.read(displayCurrencyProvider.notifier).state = 
+                            pref == DisplayCurrency.usd ? DisplayCurrency.etb : DisplayCurrency.usd,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          margin: const EdgeInsets.only(right: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                          ),
+                          child: Text(
+                            pref == DisplayCurrency.usd ? 'USD' : 'ETB',
+                            style: GoogleFonts.inter(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    Stack(
+                      children: [
+                        _HeaderAction(icon: Icons.notifications_none_rounded, isDark: isDark, onTap: () => _showNotifications(context, isDark, prefCurrency)),
+                        Positioned(
+                          right: 12,
+                          top: 12,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle, border: Border.all(color: isDark ? AppColors.darkSurface : Colors.white, width: 1.5)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -162,7 +193,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _showNotifications(BuildContext context, bool isDark) {
+  void _showNotifications(BuildContext context, bool isDark, DisplayCurrency prefCurrency) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -209,7 +240,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           return _notificationTile(
                             tx.isIncome ? Icons.download_rounded : Icons.outbox_rounded, 
                             tx.isIncome ? 'REVENUE SIGNAL' : 'DISBURSEMENT', 
-                            '${tx.isIncome ? '+' : '-'}${Formatters.currency(tx.amount)} via ${tx.platform ?? "System"}', 
+                            '${tx.isIncome ? '+' : '-'}${Formatters.currency(
+                              CurrencyConverter.convert(
+                                amount: tx.amount,
+                                from: tx.platform?.toLowerCase() == 'chapa' ? 'ETB' : 'USD',
+                                to: prefCurrency,
+                              ),
+                              symbol: CurrencyConverter.getSymbol(prefCurrency),
+                            )} via ${tx.platform ?? "System"}', 
                             Formatters.date(tx.timestamp), 
                             isDark
                           );
@@ -358,27 +396,32 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
               
               // Key Metrics
               ref.watch(businessAnalyticsProvider).when(
-                data: (analytics) => Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _MetricMiniCard(
-                      label: 'Total Net', 
-                      value: Formatters.compactCurrency(analytics['totalNet'] as double), 
-                      isDark: isDark
-                    ),
-                    _MetricMiniCard(
-                      label: 'Avg LTV', 
-                      value: Formatters.compactCurrency(analytics['avgLTV'] as double), 
-                      isDark: isDark
-                    ),
-                    _MetricMiniCard(
-                      label: 'Growth', 
-                      value: '+${((analytics['churnRate'] as double) * 5).toStringAsFixed(1)}%', 
-                      isDark: isDark, 
-                      isPositive: true
-                    ),
-                  ],
-                ),
+                data: (analytics) {
+                  final prefCurrency = ref.watch(displayCurrencyProvider);
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _MetricMiniCard(
+                        label: 'Total Net', 
+                        value: Formatters.compactCurrency((analytics['totalNet'] as num?)?.toDouble() ?? 0.0, symbol: CurrencyConverter.getSymbol(prefCurrency)), 
+                        isDark: isDark,
+                        isPositive: true,
+                      ),
+                      _MetricMiniCard(
+                        label: 'Avg LTV', 
+                        value: Formatters.compactCurrency((analytics['avgLTV'] as num?)?.toDouble() ?? 0.0, symbol: CurrencyConverter.getSymbol(prefCurrency)), 
+                        isDark: isDark,
+                        isPositive: true,
+                      ),
+                      _MetricMiniCard(
+                        label: 'Growth', 
+                        value: '${(((analytics['growthRate'] as num?)?.toDouble() ?? 0.0) * 100).toStringAsFixed(1)}%', 
+                        isDark: isDark, 
+                        isPositive: ((analytics['growthRate'] as num?)?.toDouble() ?? 0.0) >= 0,
+                      ),
+                    ],
+                  );
+                },
                 loading: () => const Center(child: LinearProgressIndicator()),
                 error: (e, s) => const SizedBox.shrink(),
               ),
@@ -419,6 +462,7 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
                         amount: tx.amount,
                         isSent: false,
                         icon: Icons.signal_cellular_alt_rounded,
+                        platform: tx.platform,
                       );
                     },
                   );
@@ -469,8 +513,9 @@ class _PlatformRevenueGrid extends ConsumerWidget {
 
     return analyticsAsync.when(
       data: (analytics) {
+        final prefCurrency = ref.watch(displayCurrencyProvider);
         final revenueByPlatform = analytics['revenueByPlatform'] as Map<String, double>;
-        final totalNet = analytics['totalNet'] as double;
+        final totalNet = (analytics['totalNet'] as num).toDouble();
         final sortedPlatforms = revenueByPlatform.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
         if (revenueByPlatform.isEmpty) {
@@ -495,7 +540,7 @@ class _PlatformRevenueGrid extends ConsumerWidget {
                 
                 return _PlatformMiniCard(
                   name: platform.toUpperCase(), 
-                  revenue: Formatters.currency(revenue), 
+                  revenue: Formatters.currency(revenue, symbol: CurrencyConverter.getSymbol(prefCurrency)), 
                   progress: progress, 
                   color: _getPlatformColor(platform), 
                   isDark: isDark
@@ -602,8 +647,9 @@ class _CrossPlatformBalanceCard extends ConsumerWidget {
 
     return analyticsAsync.when(
       data: (data) {
-        final totalBalance = data['totalManagedBalance'] as double;
-        final platformBalances = data['platformBalances'] as Map<String, double>;
+        final prefCurrency = ref.watch(displayCurrencyProvider);
+        final totalBalance = (data['totalManagedBalance'] as num).toDouble();
+        final platformData = data['platformBalances'] as Map<String, Map<String, dynamic>>;
 
         return Container(
           width: double.infinity,
@@ -618,21 +664,25 @@ class _CrossPlatformBalanceCard extends ConsumerWidget {
             children: [
               Text('TOTAL MANAGED ASSETS', style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
               const SizedBox(height: 12),
-              Text(Formatters.currency(totalBalance), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: -1)),
+              Text(
+                Formatters.currency(totalBalance, symbol: CurrencyConverter.getSymbol(prefCurrency)), 
+                style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: -1)
+              ),
               const SizedBox(height: 24),
               Divider(color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
               const SizedBox(height: 16),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: platformBalances.entries.map((e) => Padding(
+                  children: platformData.entries.map((e) => Padding(
                     padding: const EdgeInsets.only(right: 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(e.key, style: GoogleFonts.inter(color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
                         const SizedBox(height: 4),
-                        Text(Formatters.compactCurrency(e.value), style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w800, fontSize: 16)),
+                        Text(Formatters.compactCurrency((e.value['balance'] as num).toDouble(), symbol: CurrencyConverter.getSymbol(prefCurrency)), 
+                             style: GoogleFonts.inter(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w800, fontSize: 16)),
                       ],
                     ),
                   )).toList(),
