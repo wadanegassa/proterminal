@@ -46,25 +46,25 @@ class FirebaseService {
   }
 
   // ── Transactions ──────────────────────────────────────────────────────────
-  Stream<List<TransactionModel>> getTransactionHistory(String uid) {
+  Stream<List<TransactionModel>> getTransactionHistory(String uid, {int limit = 20}) {
     // Get transactions where user is sender OR receiver (merged client-side)
     return _db
         .collection('transactions')
         .where('senderId', isEqualTo: uid)
         .orderBy('timestamp', descending: true)
-        .limit(20)
+        .limit(limit)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => TransactionModel.fromMap(d.data(), d.id))
             .toList());
   }
 
-  Stream<List<TransactionModel>> getReceivedTransactions(String uid) {
+  Stream<List<TransactionModel>> getReceivedTransactions(String uid, {int limit = 20}) {
     return _db
         .collection('transactions')
         .where('receiverId', isEqualTo: uid)
         .orderBy('timestamp', descending: true)
-        .limit(20)
+        .limit(limit)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => TransactionModel.fromMap(d.data(), d.id))

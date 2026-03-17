@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../features/transaction/domain/transaction_model.dart';
 import 'formatters.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../features/wallet/presentation/currency_provider.dart';
 
 class ReceiptUtils {
   static void shareReceipt(BuildContext context, TransactionModel tx) {
     // In a real app, this might use 'share_plus' to share a PDF or Image.
     // For now, we'll show a "Receipt Presentation" dialog.
+    final prefCurrency = ProviderScope.containerOf(context).read(displayCurrencyProvider);
+    final convertedAmount = CurrencyConverter.convert(
+      amount: tx.amount,
+      from: tx.platform?.toLowerCase() == 'chapa' ? 'ETB' : 'USD',
+      to: prefCurrency,
+    );
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -34,7 +42,7 @@ class ReceiptUtils {
                 children: [
                   _receiptRow('Status', tx.status.name.toUpperCase(), isSuccess: tx.status == TransactionStatus.completed),
                   const Divider(height: 32),
-                  _receiptRow('Amount', Formatters.currency(tx.amount), isBold: true),
+                  _receiptRow('Amount', Formatters.currency(convertedAmount, symbol: CurrencyConverter.getSymbol(prefCurrency)), isBold: true),
                   _receiptRow('Date', Formatters.dateTime(tx.timestamp)),
                   _receiptRow('Transaction ID', tx.id.substring(0, 12).toUpperCase()),
                   const Divider(height: 32),
