@@ -6,6 +6,7 @@ import 'package:propay/core/utils/formatters.dart';
 import 'package:propay/features/product/presentation/product_provider.dart';
 import 'package:propay/features/product/domain/product_model.dart';
 import 'package:propay/features/wallet/presentation/wallet_provider.dart';
+import 'package:propay/features/wallet/presentation/currency_provider.dart';
 
 class PlatformScreen extends ConsumerWidget {
   const PlatformScreen({super.key});
@@ -15,6 +16,7 @@ class PlatformScreen extends ConsumerWidget {
     final analyticsAsync = ref.watch(businessAnalyticsProvider);
     final productsAsync = ref.watch(productsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
@@ -64,6 +66,7 @@ class PlatformScreen extends ConsumerWidget {
                     revenue: revenue,
                     skus: skus,
                     isDark: isDark,
+                    prefCurrency: prefCurrency,
                     onTap: () {
                       ref.read(selectedProductPlatformProvider.notifier).state = platform;
                       Navigator.push(context, MaterialPageRoute(builder: (_) => PlatformInventoryScreen(platform: platform)));
@@ -88,9 +91,10 @@ class _PlatformCard extends StatelessWidget {
   final double revenue;
   final int skus;
   final bool isDark;
+  final DisplayCurrency prefCurrency;
   final VoidCallback onTap;
 
-  const _PlatformCard({required this.name, required this.revenue, required this.skus, required this.isDark, required this.onTap});
+  const _PlatformCard({required this.name, required this.revenue, required this.skus, required this.isDark, required this.onTap, required this.prefCurrency});
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +144,7 @@ class _PlatformCard extends StatelessWidget {
               children: [
                 Text('REVENUE', style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w900, color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted, letterSpacing: 1)),
                 const SizedBox(height: 4),
-                Text(Formatters.compactCurrency(revenue), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w900, color: platformColor)),
+                Text(Formatters.compactCurrency(revenue, symbol: CurrencyConverter.getSymbol(prefCurrency)), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w900, color: platformColor)),
               ],
             ),
           ],
@@ -158,6 +162,7 @@ class PlatformInventoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(filteredProductsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final prefCurrency = ref.watch(displayCurrencyProvider);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
@@ -205,7 +210,7 @@ class PlatformInventoryScreen extends ConsumerWidget {
                     mainAxisSpacing: 16,
                   ),
                   itemCount: products.length,
-                  itemBuilder: (context, index) => _ProductCard(product: products[index], isDark: isDark),
+                  itemBuilder: (context, index) => _ProductCard(product: products[index], isDark: isDark, prefCurrency: prefCurrency),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -258,7 +263,8 @@ class _SearchBar extends ConsumerWidget {
 class _ProductCard extends StatelessWidget {
   final ProductModel product;
   final bool isDark;
-  const _ProductCard({required this.product, required this.isDark});
+  final DisplayCurrency prefCurrency;
+  const _ProductCard({required this.product, required this.isDark, required this.prefCurrency});
 
   @override
   Widget build(BuildContext context) {
@@ -306,7 +312,17 @@ class _ProductCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(Formatters.currency(product.price), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
+                    Text(
+                      Formatters.currency(
+                        CurrencyConverter.convert(
+                          amount: product.price,
+                          from: product.platform.toLowerCase() == 'chapa' ? 'ETB' : 'USD',
+                          to: prefCurrency,
+                        ),
+                        symbol: CurrencyConverter.getSymbol(prefCurrency),
+                      ),
+                      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
