@@ -10,6 +10,7 @@ class CardModel {
   final String platform; // 'propay', 'stripe', 'telebirr', 'chapa'
   final String? gatewayId; // ID from external system
   final String walletAddress; // Unique identifier for transfers
+  final String currency; // 'USD', 'ETB', etc.
 
   const CardModel({
     required this.id,
@@ -23,6 +24,7 @@ class CardModel {
     this.isDefault = false,
     this.platform = 'propay',
     this.gatewayId,
+    this.currency = 'USD',
   });
 
   factory CardModel.fromMap(Map<String, dynamic> data, String id) {
@@ -41,6 +43,7 @@ class CardModel {
       isDefault: data['isDefault'] ?? false,
       platform: data['platform'] ?? 'propay',
       gatewayId: data['gatewayId'],
+      currency: data['currency'] ?? 'USD',
     );
   }
 
@@ -54,6 +57,7 @@ class CardModel {
         'walletAddress': walletAddress,
         'isDefault': isDefault,
         'platform': platform,
+        'currency': currency,
         if (gatewayId != null) 'gatewayId': gatewayId,
       };
 }
