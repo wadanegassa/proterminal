@@ -43,7 +43,7 @@ class GatewayService {
             liveCards.add(CardModel(
               id: 'gateway_stripe_$uid',
               walletAddress: 'stripe_$uid',
-              cardNumber: '**** **** **** 4242', 
+              cardNumber: 'GATEWAY-****-STRIPE', 
               cardHolder: 'Live Stripe Balance',
               expiryDate: 'N/A',
               balance: totalAvailable,
@@ -51,49 +51,60 @@ class GatewayService {
               gradientIndex: 1,
               platform: 'stripe',
               gatewayId: 'acct_1Stripe',
+              currency: 'USD',
             ));
           }
         } catch (e) {
           debugPrint("Stripe fetch failed: $e");
         }
 
-        // 2. Fetch live Chapa Balance directly via HTTP (using /v1/balances)
+        // 2. Fetch Chapa Transactions to calculate balance (since /v1/balances might be 0 in sandbox)
         try {
           final chapaRes = await http.get(
-            Uri.parse('https://api.chapa.co/v1/balances'),
+            Uri.parse('https://api.chapa.co/v1/transactions'),
             headers: {
               'Authorization': 'Bearer ${PaymentConfig.chapaSecretKey}',
             },
           );
-
+          
           if (chapaRes.statusCode == 200) {
             final data = json.decode(chapaRes.body);
-            // v1/balances returns a 'data' array with different currencies
-            final balances = data['data'] as List?;
+            final chapaData = data['data'];
+            List? transactions;
+            
+            if (chapaData is List) {
+              transactions = chapaData;
+            } else if (chapaData is Map && chapaData['transactions'] is List) {
+              transactions = chapaData['transactions'];
+            }
+
             double totalBalance = 0;
-            if (balances != null) {
-              for (var b in balances) {
-                // We sum up available + ledger for a 'total' view, or pick one. 
-                // Using available_balance for immediate utility.
-                totalBalance += (b['available_balance'] ?? 0).toDouble();
+            if (transactions != null) {
+              for (var item in transactions) {
+                if (item['status'] == 'success') {
+                  totalBalance += double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0;
+                }
               }
             }
 
             liveCards.add(CardModel(
               id: 'gateway_chapa_$uid',
               walletAddress: 'chapa_$uid',
-              cardNumber: 'CHAPA-****-WALLET',
-              cardHolder: 'Live Chapa Balance',
+              cardNumber: 'GATEWAY-****-CHAPA',
+              cardHolder: 'Chapa Revenue Balance',
               expiryDate: 'N/A',
               balance: totalBalance,
               type: 'Chapa Wallet',
               gradientIndex: 2,
               platform: 'chapa',
               gatewayId: 'chapa_main',
+              currency: 'ETB',
             ));
+          } else {
+            debugPrint("Chapa TX fetch for balance failed: ${chapaRes.statusCode}");
           }
         } catch (e) {
-          debugPrint("Chapa fetch failed: $e");
+          debugPrint("Chapa TX fetch for balance failed: $e");
         }
 
         yield liveCards;
@@ -107,14 +118,14 @@ class GatewayService {
   }
 
   /// Fetches real transaction history from external gateways
-  Stream<List<TransactionModel>> getExternalTransactions() async* {
+  Stream<List<TransactionModel>> getExternalTransactions({int limit = 50}) async* {
     while (true) {
       final List<TransactionModel> txs = [];
       
       // 1. Fetch Stripe Transactions
       try {
         final res = await http.get(
-          Uri.parse('https://api.stripe.com/v1/balance_transactions?limit=10'),
+          Uri.parse('https://api.stripe.com/v1/balance_transactions?limit=$limit'),
           headers: {'Authorization': 'Bearer ${PaymentConfig.stripeSecretKey}'},
         );
         if (res.statusCode == 200) {
@@ -146,22 +157,33 @@ class GatewayService {
         );
         if (res.statusCode == 200) {
           final data = json.decode(res.body);
-          if (data['data'] != null && data['data'] is List) {
-            for (var item in data['data']) {
+          final chapaData = data['data'];
+          List? transactions;
+          
+          if (chapaData is List) {
+            transactions = chapaData;
+          } else if (chapaData is Map && chapaData['transactions'] is List) {
+            transactions = chapaData['transactions'];
+          }
+
+          if (transactions != null) {
+            for (var item in transactions) {
               txs.add(TransactionModel(
                 id: item['tx_ref'] ?? item['id'] ?? 'chapa_${DateTime.now().millisecondsSinceEpoch}',
                 senderId: item['first_name'] ?? 'Chapa User',
                 receiverId: 'Merchant',
-                amount: (item['amount'] ?? 0).toDouble(),
-                timestamp: DateTime.parse(item['created_at'] ?? DateTime.now().toIso8601String()),
+                amount: double.tryParse(item['amount']?.toString() ?? '0') ?? 0.0,
+                timestamp: DateTime.tryParse(item['created_at'] ?? '') ?? DateTime.now(),
                 type: TransactionType.transfer,
-                status: TransactionStatus.completed,
+                status: item['status'] == 'success' ? TransactionStatus.completed : TransactionStatus.failed,
                 platform: 'Chapa',
-                isRevenue: true,
+                isRevenue: item['status'] == 'success',
                 note: 'Chapa: ${item['reason'] ?? "Payment"}',
               ));
             }
           }
+        } else {
+          debugPrint("Chapa TX fetch failed: ${res.statusCode} - ${res.body}");
         }
       } catch (e) {
         debugPrint("Chapa TX fetch failed: $e");
